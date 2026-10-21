@@ -1,7 +1,7 @@
 # Gesture Foley
 
-Perform footstep foley with your hands in front of a webcam.
-Hand tracking (MediaPipe) → step detection → real-time footsteps **and MIDI into your DAW**.
+Perform foley with your hands in front of a webcam: touch your thumb to a fingertip to play a sound.
+Hand tracking (MediaPipe) → gesture detection → real-time sound **and MIDI into your DAW**.
 
 **Try it in your browser:** https://atharvabankarsound.github.io/Gesture-foley/  
 No install needed: allow camera access and touch your thumb to a fingertip.
@@ -41,22 +41,32 @@ The first run downloads the hand-tracking model (`hand_landmarker.task`, a few M
 If the camera doesn't open: **System Settings → Privacy & Security → Camera**
 and allow Terminal (or VS Code), then run again.
 
-## How to perform
+## How to perform (Python version)
 
-- Hold a hand palm-down, then **tap it down** like a foot landing (on the desk or in mid-air).
-- Lift it again to re-arm. Left hand = left foot, right hand = right foot.
-- Faster tap = louder, brighter step and a shorter heel-to-toe gap (walk → run).
+The Python script uses the same gesture engine as the website and plays footsteps.
 
-On screen, the palm dot is **green** (ready), **orange** (falling) or **grey** (landed),
-and flashes red on a step. The bar beside it is your downward speed; the red line is
-the trigger threshold.
+| Gesture | Sound |
+|---|---|
+| Thumb + index touch | Step (heel + toe) |
+| Thumb + middle touch | Scuff |
+| Thumb + ring touch | Squeak |
+| Fist | Stomp |
+| Swipe sideways | Shuffle |
+| Move open hand | Continuous motion (MIDI CC 1) |
+
+- How fast your fingers close sets the velocity: a quick touch is a hard, running step.
+- Open your fingers again before the next touch; holding them together never repeats.
+- Left hand = left foot, right hand = right foot (panned left and right).
+
+On screen, a line from your thumb to each fingertip brightens as they get closer, a dot appears
+while they're touching, and a ring flashes when a sound fires.
 
 | Key | Action |
 |---|---|
-| 1 2 3 4 | concrete / wood / gravel / grass |
-| m | impact mode (accurate) ↔ onset mode (lower latency) |
-| + / − | more / less sensitive |
-| space | test footstep |
+| 1–5 | concrete / wood / gravel / grass / snow |
+| + / − | touch distance up / down |
+| e | early trigger on / off (fires just before contact) |
+| space | test step |
 | q / Esc | quit |
 
 Click the video window before pressing keys.
@@ -64,14 +74,24 @@ Click the video window before pressing keys.
 ## Stage 2: recording into Reaper
 
 While the script runs it creates a virtual MIDI port called **Gesture Foley**.
-Each step is one MIDI note; velocity = how hard you stepped.
+Each gesture is its own MIDI note, so a sampler can hold a different sound for each;
+velocity = how fast your fingers closed.
 
-| Surface | Left | Right |
+| Gesture | Left | Right |
 |---|---|---|
-| concrete | 36 (C1) | 37 (C#1) |
-| wood | 38 (D1) | 39 (D#1) |
-| gravel | 40 (E1) | 41 (F1) |
-| grass | 42 (F#1) | 43 (G1) |
+| Index touch (step) | 36 | 37 |
+| Middle touch (scuff) | 38 | 39 |
+| Ring touch (squeak) | 40 | 41 |
+| Fist (stomp) | 42 | 43 |
+| Swipe (shuffle) | 44 | 45 |
+
+Continuous controls are sent as CCs, so you can record and map them in your DAW:
+
+| CC | Meaning |
+|---|---|
+| 1 (mod wheel) | Open-hand motion, 0–127 |
+| 74 | Hand height, 0–127 |
+| 20 | Surface: 0 concrete, 1 wood, 2 gravel, 3 grass, 4 snow |
 
 *(Reaper names octaves differently by default, so it may show 36 as C2. The numbers are what matter.)*
 
@@ -94,7 +114,7 @@ Run `python gesture_foley.py` as normal. You hear the built-in synth while Reape
 1. Run `python gesture_foley.py --no-sound` so you don't hear two sounds at once.
 2. On the track, add **ReaSamplOmatic5000** (FX → Instruments).
 3. Drag a footstep sample into it and set **Note range start** and **end** to the same note,
-   e.g. 36 for concrete/left. Untick **Obey note-offs** so the whole sample plays.
+   e.g. 36 for left-foot steps. Untick **Obey note-offs** so the whole sample plays.
 4. Repeat with more RS5K instances (or duplicates) for 37, 38, ... one sample per note.
 5. Use different recordings for left and right feet so it doesn't sound robotic.
 
@@ -109,9 +129,10 @@ python gesture_foley.py --midi-port "loopMIDI Port"   # Windows (virtual ports a
 
 ## Tuning tips
 
-- Steps not firing → press `+`. Phantom steps → press `−`.
-- Sit 50–80 cm from the camera with good light; speed is measured in screen heights per second,
-  so distance changes sensitivity.
+- Touches missed → press `+` (larger touch distance). Sounds firing before your fingers meet → press `−`.
+- Keep your other fingers extended while touching; a curled hand is treated as a fist, not a touch.
+- Sit 50–80 cm from the camera with good light. Distance doesn't change sensitivity, because
+  everything is measured relative to the size of your hand.
 - Check "Camera FPS" in the HUD. 30 fps works; 60 fps feels noticeably tighter.
 - Recorded notes land slightly late (camera + tracking delay). Select them in Reaper and nudge
   them earlier, or use the track's MIDI input offset. We'll measure and automate this later.
@@ -119,6 +140,7 @@ python gesture_foley.py --midi-port "loopMIDI Port"   # Windows (virtual ports a
 ## Roadmap
 
 1. ~~Stage 1: camera → gestures → synthesized steps~~
-2. **Stage 2 (this):** MIDI out → editable performance in Reaper
-3. JUCE plugin (VST3/AU) with a sample-based engine; this script becomes the companion app
-4. Trained gesture classifier, more surfaces and foley types (cloth, impacts, props)
+2. ~~Stage 2: MIDI out → editable performance in Reaper~~
+3. ~~Finger-touch gestures, sound library and glass UI in the browser~~
+4. JUCE plugin (VST3/AU) with a sample-based engine; this script becomes the companion app
+5. Recorded sample library and a trained gesture classifier
