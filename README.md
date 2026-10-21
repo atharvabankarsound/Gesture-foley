@@ -4,7 +4,24 @@ Perform footstep foley with your hands in front of a webcam.
 Hand tracking (MediaPipe) → step detection → real-time footsteps **and MIDI into your DAW**.
 
 **Try it in your browser:** https://atharvabankarsound.github.io/Gesture-foley/  
-No install needed: allow camera access and tap your hands.
+No install needed: allow camera access and touch your thumb to a fingertip.
+
+### Browser version: gestures
+
+| Gesture | Footsteps | Cinematic | Guns | Cloth | Movement |
+|---|---|---|---|---|---|
+| Thumb + index | Step | Hit | Shot | Grab | Whoosh |
+| Thumb + middle | Scuff | Braam | Reload | Snap | Long whoosh |
+| Thumb + ring | Squeak | Riser | Shell drop | Zip | Punch |
+| Fist | Stomp | Boom | Burst | Body fall | Body hit |
+| Swipe sideways | Shuffle | Whoosh | Whiz-by | Swish | Swing |
+| Move open hand | – | Drone | – | Rustle | Air |
+
+How fast your fingers close sets the velocity. Hand height shapes the tone, and the left
+hand plays on the left of the stereo field, the right hand on the right. Every folder has
+several presets, and the Intensity, Tone, Space, Pitch, Variation and Texture knobs shape the sound.
+
+Code: `docs/gestures.js` (gesture detection), `docs/sounds.js` (sound synthesis), `docs/app.js` (UI).
 
 Listen to the built-in surfaces: [`media/surfaces_demo.wav`](media/surfaces_demo.wav)
 
