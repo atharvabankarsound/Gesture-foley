@@ -26,6 +26,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--bg);
@@ -41,6 +42,7 @@ body {
 .top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; }
 h1 { font: 700 clamp(30px, 5vw, 48px)/1 var(--display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
 h1 span { color: var(--amber); }
+.byline { margin: 8px 0 0; font: 500 13px var(--mono); color: var(--fg); letter-spacing: 0.02em; }
 .tag { margin: 6px 0 0; color: var(--muted); max-width: 52ch; }
 .top a { color: var(--fg); font: 500 13px var(--mono); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
 .top a:hover { border-color: var(--amber); }
@@ -121,6 +123,7 @@ footer a { color: var(--fg); }
   <header class="top">
     <div>
       <h1>Gesture <span>Foley</span></h1>
+      <p class="byline">A project by Atharva Bankar</p>
       <p class="tag">Perform footsteps with your hands. Tap down like a foot landing and the speed of your hand sets how hard the step hits.</p>
     </div>
     <a href="https://github.com/atharvabankarsound/Gesture-foley">github.com/atharvabankarsound/Gesture-foley</a>
