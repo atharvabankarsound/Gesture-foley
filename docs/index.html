@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gesture Foley</title>
+<meta name="description" content="Perform footstep foley with your hands in front of your webcam. Runs entirely in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a foley stage. Camera "pit" on the left, console on the right,
+   a two-lane cue track (left foot / right foot) across the bottom. */
+:root {
+  --bg: #121418;
+  --panel: #1a1d23;
+  --line: #2b3039;
+  --fg: #e9e6df;
+  --muted: #949aa5;
+  --amber: #f0b24a;
+  --left: #5cc8c2;
+  --right: #e58a5c;
+  --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.55 var(--body);
+  padding-block: max(20px, env(safe-area-inset-top, 0px)) max(28px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; }
+h1 { font: 700 clamp(30px, 5vw, 48px)/1 var(--display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h1 span { color: var(--amber); }
+.tag { margin: 6px 0 0; color: var(--muted); max-width: 52ch; }
+.top a { color: var(--fg); font: 500 13px var(--mono); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.top a:hover { border-color: var(--amber); }
+
+/* stage */
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+@media (max-width: 880px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+.pit { display: grid; gap: 8px; min-width: 0; }
+.video-wrap {
+  position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9;
+  background: #0b0c0f; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+#overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gate {
+  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center;
+  gap: 14px; padding: 24px; text-align: center; background: rgba(11, 12, 15, 0.86);
+}
+.gate p { margin: 0; color: var(--muted); max-width: 40ch; }
+.gate .status { font: 13px var(--mono); color: var(--amber); min-height: 1.5em; }
+.gate .status.err { color: var(--right); }
+.btn-big {
+  font: 600 16px var(--body); color: #17130a; background: var(--amber);
+  border: 0; border-radius: 999px; padding: 13px 26px; cursor: pointer;
+}
+.btn-big:disabled { opacity: 0.5; cursor: wait; }
+.hud { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.hud b { color: var(--fg); font-weight: 500; }
+
+/* console */
+.console { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 20px; }
+.group { display: grid; gap: 8px; }
+.label { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); display: flex; justify-content: space-between; }
+.label output { color: var(--fg); letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+.surfaces { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.chip {
+  font: 500 14px var(--body); color: var(--fg); background: transparent;
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
+  display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+}
+.chip kbd { font: 11px var(--mono); color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--amber); background: rgba(240, 178, 74, 0.12); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: 500 13px var(--body); color: var(--muted); background: transparent; border: 0; padding: 8px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--line); color: var(--fg); }
+.hint { margin: 0; font-size: 12.5px; color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--amber); }
+.readout { border-top: 1px solid var(--line); padding-top: 16px; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: baseline; }
+.vel { font: 700 44px/1 var(--display); font-variant-numeric: tabular-nums; grid-row: span 2; min-width: 2.4ch; }
+.vel.left { color: var(--left); }
+.vel.right { color: var(--right); }
+.readout .meta { font: 12px var(--mono); color: var(--muted); }
+.test { font: 500 13px var(--body); color: var(--fg); background: transparent; border: 1px dashed var(--line); border-radius: 8px; padding: 8px; cursor: pointer; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* cue track */
+.cue { display: grid; gap: 8px; }
+.cue-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; }
+.cue h2 { font: 700 20px var(--display); margin: 0; }
+.legend { display: flex; gap: 16px; font: 12px var(--mono); color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+#cue { width: 100%; height: 132px; display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+
+/* how to */
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 720px) { .how { grid-template-columns: minmax(0, 1fr); } }
+.how div { border-top: 1px solid var(--line); padding-top: 12px; }
+.how h3 { font: 600 15px var(--body); margin: 0 0 4px; }
+.how p { margin: 0; color: var(--muted); font-size: 14px; }
+footer { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+footer a { color: var(--fg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Gesture <span>Foley</span></h1>
+      <p class="tag">Perform footsteps with your hands. Tap down like a foot landing and the speed of your hand sets how hard the step hits.</p>
+    </div>
+    <a href="https://github.com/atharvabankarsound/Gesture-foley">github.com/atharvabankarsound/Gesture-foley</a>
+  </header>
+
+  <main class="stage">
+    <section class="pit" aria-label="Camera">
+      <div class="video-wrap" id="videoWrap">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="gate" id="gate">
+          <button class="btn-big" id="startBtn" type="button">Start camera</button>
+          <p>Your video is processed on this device and never uploaded. Headphones help you hear the steps clearly.</p>
+          <div class="status" id="status" role="status">Loading hand tracker…</div>
+        </div>
+      </div>
+      <div class="hud" aria-live="off">
+        <span>Camera <b id="hudFps">–</b> fps</span>
+        <span>Tracking <b id="hudMs">–</b> ms</span>
+        <span>Hands <b id="hudHands">0</b></span>
+        <span>Steps <b id="hudSteps">0</b></span>
+      </div>
+    </section>
+
+    <aside class="console" aria-label="Controls">
+      <div class="group">
+        <div class="label">Surface</div>
+        <div class="surfaces" id="surfaces"></div>
+      </div>
+
+      <div class="group">
+        <div class="label">Trigger <output>key M</output></div>
+        <div class="seg">
+          <button type="button" id="modeImpact" aria-pressed="true">Impact</button>
+          <button type="button" id="modeOnset" aria-pressed="false">Onset</button>
+        </div>
+        <p class="hint" id="modeHint">Fires when your hand stops. Most accurate loudness.</p>
+      </div>
+
+      <div class="group">
+        <label class="label" for="thresh">Threshold <output id="threshOut">1.2 H/s</output></label>
+        <input type="range" id="thresh" min="0.4" max="3" step="0.1" value="1.2">
+        <p class="hint">Downward speed in screen heights per second. Lower it if steps are missed.</p>
+      </div>
+
+      <div class="group">
+        <label class="label" for="volume">Output <output id="volOut">80%</output></label>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8">
+      </div>
+
+      <div class="readout" aria-live="polite">
+        <div class="vel" id="lastVel">–</div>
+        <div id="lastFoot">No steps yet</div>
+        <div class="meta" id="lastMeta">velocity · MIDI · surface</div>
+      </div>
+
+      <button class="test" type="button" id="testBtn">Play a test step <kbd>space</kbd></button>
+    </aside>
+  </main>
+
+  <section class="cue" aria-label="Cue track">
+    <div class="cue-head">
+      <h2>Cue track</h2>
+      <div class="legend"><span><i style="background:var(--left)"></i>Left foot</span><span><i style="background:var(--right)"></i>Right foot</span><span>last 8 s · bar height = velocity</span></div>
+    </div>
+    <canvas id="cue"></canvas>
+  </section>
+
+  <section class="how">
+    <div><h3>Hold your hand palm-down</h3><p>Sit 50–80 cm from the camera in good light, with your hand in frame.</p></div>
+    <div><h3>Tap down, then lift</h3><p>Each downward tap is one step. Lift your hand to re-arm. A faster tap gives a louder, brighter step.</p></div>
+    <div><h3>Alternate hands</h3><p>Your left hand is the left foot and your right hand is the right foot. Keys 1–4 change surface.</p></div>
+  </section>
+
+  <footer>
+    <span>Hand tracking by MediaPipe. Footsteps are synthesized live with the Web Audio API.</span>
+    <span>The <a href="https://github.com/atharvabankarsound/Gesture-foley">Python version</a> also sends MIDI to your DAW.</span>
+  </footer>
+</div>
+
+<script type="module">
+import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+const PALM = [0, 5, 9, 13, 17];
+const $ = (id) => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COL = { left: css("--left"), right: css("--right"), amber: css("--amber"), line: css("--line"), muted: css("--muted"), fg: css("--fg") };
+
+/* ---------------- Surfaces (same design as the Python synth) ---------------- */
+const SURF = {
+  concrete: { name: "Concrete", thumpF: 85,  thumpDecay: 0.025, thumpGain: 0.5,  noise: ["lowpass", 3500],         nA: 0.0005, nD: 0.02, nGain: 0.6,  crunch: 0 },
+  wood:     { name: "Wood",     thumpF: 150, thumpDecay: 0.06,  thumpGain: 0.8,  noise: ["bandpass", [250, 1400]], nA: 0.0005, nD: 0.04, nGain: 0.9,  crunch: 0 },
+  gravel:   { name: "Gravel",   thumpF: 70,  thumpDecay: 0.03,  thumpGain: 0.35, noise: ["bandpass", [800, 6000]], nA: 0.002,  nD: 0.05, nGain: 0.35, crunch: 60 },
+  grass:    { name: "Grass",    thumpF: 60,  thumpDecay: 0.03,  thumpGain: 0.2,  noise: ["highpass", 1500],        nA: 0.008,  nD: 0.06, nGain: 0.3,  crunch: 12 },
+};
+const SURF_KEYS = Object.keys(SURF);
+const MIDI_BASE = { concrete: 36, wood: 38, gravel: 40, grass: 42 };
+
+/* ---------------- Audio ---------------- */
+let ctx = null, master = null, noiseBuf = null;
+
+function initAudio() {
+  if (ctx) return ctx.resume();
+  ctx = new AudioContext({ latencyHint: "interactive" });
+  const comp = ctx.createDynamicsCompressor();   // keeps overlapping steps from clipping
+  comp.threshold.value = -10; comp.ratio.value = 8; comp.attack.value = 0.002; comp.release.value = 0.12;
+  master = ctx.createGain();
+  master.gain.value = +$("volume").value;
+  master.connect(comp).connect(ctx.destination);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  return ctx.resume();
+}
+
+function envelope(param, t, peak, attack, decay) {
+  param.setValueAtTime(0, t);
+  param.linearRampToValueAtTime(peak, t + attack);
+  param.setTargetAtTime(0, t + attack, decay);
+}
+
+function crunchBuffer(density, vel) {
+  // Granular clicks for gravel and grass: many tiny noise grains clustered early in the step.
+  const sr = ctx.sampleRate, n = Math.floor(0.35 * sr);
+  const buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  const count = Math.floor(density * (0.4 + vel));
+  for (let i = 0; i < count; i++) {
+    const pos = 1 - Math.pow(Math.random(), 1 / 3);   // skewed towards the start
+    const start = Math.floor(pos * (n - 200));
+    const g = Math.min(Math.floor(rand(0.0008, 0.003) * sr), n - start);
+    const amp = rand(0.2, 1);
+    for (let k = 0; k < g; k++) d[start + k] += (Math.random() * 2 - 1) * Math.exp(-k / (g / 4)) * amp;
+  }
+  return buf;
+}
+
+function contact(t, s, vel, weight, out) {
+  const pitch = rand(0.92, 1.08);          // no two steps identical
+  const bright = 0.6 + 0.8 * vel;          // harder steps are brighter
+
+  // Body thump: sine with a fast downward pitch sweep.
+  const osc = ctx.createOscillator(), og = ctx.createGain();
+  const f0 = s.thumpF * pitch;
+  osc.frequency.setValueAtTime(f0 * 2.5, t);
+  osc.frequency.setTargetAtTime(f0, t, 0.012);
+  envelope(og.gain, t, s.thumpGain * weight, 0.001, s.thumpDecay);
+  osc.connect(og).connect(out);
+  osc.start(t); osc.stop(t + 0.45);
+
+  // Surface texture: filtered noise burst.
+  const src = ctx.createBufferSource(), filt = ctx.createBiquadFilter(), ng = ctx.createGain();
+  src.buffer = noiseBuf;
+  const [type, fr] = s.noise;
+  filt.type = type;
+  if (type === "bandpass") {
+    const lo = fr[0] * bright, hi = Math.min(fr[1] * bright, 18000), c = Math.sqrt(lo * hi);
+    filt.frequency.value = c; filt.Q.value = c / (hi - lo);
+  } else {
+    filt.frequency.value = Math.min(fr * bright, 18000); filt.Q.value = 0.707;
+  }
+  envelope(ng.gain, t, s.nGain * weight, s.nA, s.nD * (0.7 + 0.6 * vel));
+  src.connect(filt).connect(ng).connect(out);
+  src.start(t, rand(0, 1.5)); src.stop(t + 0.45);
+
+  if (s.crunch) {
+    const cs = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), cg = ctx.createGain();
+    cs.buffer = crunchBuffer(s.crunch, vel);
+    hp.type = "highpass"; hp.frequency.value = 1800;
+    cg.gain.value = 0.5 * weight;
+    cs.connect(hp).connect(cg).connect(out);
+    cs.start(t);
+  }
+}
+
+function footstep(surface, vel) {
+  if (!ctx) return;
+  const s = SURF[surface], t = ctx.currentTime + 0.003;
+  const out = ctx.createGain();
+  out.gain.value = (0.08 + 0.92 * Math.pow(vel, 1.5)) * Math.pow(10, rand(-2, 2) / 20);
+  out.connect(master);
+  contact(t, s, vel, 1.0, out);                                         // heel
+  const gap = (0.11 + (0.035 - 0.11) * vel) * rand(0.85, 1.15);          // walk -> run
+  contact(t + gap, s, vel * 0.7, 0.45, out);                            // toe
+  setTimeout(() => out.disconnect(), 1500);
+}
+
+/* ---------------- Step detection (same state machine as Python) ---------------- */
+class StepDetector {
+  constructor() { this.prevY = null; this.prevT = null; this.vy = 0; this.state = "ARMED"; this.peak = 0; this.fallStart = 0; }
+  vel(speed) { return Math.min(1, Math.max(0, (speed - settings.thresh) / (4.0 - settings.thresh))); }
+  update(y, t) {
+    if (this.prevT === null) { this.prevY = y; this.prevT = t; return null; }
+    const dt = t - this.prevT;
+    if (dt <= 0) return null;
+    const raw = (y - this.prevY) / dt;          // positive = moving down
+    this.vy = 0.5 * this.vy + 0.5 * raw;
+    this.prevY = y; this.prevT = t;
+    let ev = null;
+    if (this.state === "ARMED") {
+      if (this.vy > settings.thresh) {
+        this.state = "FALLING"; this.peak = this.vy; this.fallStart = t;
+        if (settings.mode === "onset") ev = this.vel(this.vy * 1.5);
+      }
+    } else if (this.state === "FALLING") {
+      this.peak = Math.max(this.peak, this.vy);
+      if (this.vy < this.peak * 0.3) {
+        if (settings.mode === "impact") ev = this.vel(this.peak);
+        this.state = "LANDED";
+      } else if (t - this.fallStart > 0.5) {
+        this.state = "LANDED";
+      }
+    } else if (this.vy < -0.2) {
+      this.state = "ARMED";
+    }
+    return ev;
+  }
+}
+
+/* ---------------- UI state ---------------- */
+const settings = { surface: "concrete", mode: "impact", thresh: 1.2 };
+const cueEvents = [];
+let stepCount = 0;
+
+function buildSurfaces() {
+  const box = $("surfaces");
+  SURF_KEYS.forEach((k, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.surface = k;
+    b.innerHTML = `<span>${SURF[k].name}</span><kbd>${i + 1}</kbd>`;
+    b.addEventListener("click", () => setSurface(k));
+    box.appendChild(b);
+  });
+  setSurface(settings.surface);
+}
+function setSurface(k) {
+  settings.surface = k;
+  document.querySelectorAll(".chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.surface === k)));
+}
+function setMode(m) {
+  settings.mode = m;
+  $("modeImpact").setAttribute("aria-pressed", String(m === "impact"));
+  $("modeOnset").setAttribute("aria-pressed", String(m === "onset"));
+  $("modeHint").textContent = m === "impact"
+    ? "Fires when your hand stops. Most accurate loudness."
+    : "Fires as your hand starts to fall. Faster, but loudness is a guess.";
+}
+
+function fire(foot, vel) {
+  initAudio();
+  footstep(settings.surface, vel);
+  stepCount++;
+  cueEvents.push({ t: performance.now(), foot, vel, surface: settings.surface });
+  const midiNote = MIDI_BASE[settings.surface] + (foot === "right" ? 1 : 0);
+  const midiVel = Math.round(1 + vel * 126);
+  const v = $("lastVel");
+  v.textContent = vel.toFixed(2);
+  v.className = "vel " + foot;
+  $("lastFoot").textContent = `${foot === "left" ? "Left" : "Right"} foot · ${SURF[settings.surface].name}`;
+  $("lastMeta").textContent = `MIDI note ${midiNote} · velocity ${midiVel}/127`;
+  $("hudSteps").textContent = stepCount;
+}
+
+$("modeImpact").addEventListener("click", () => setMode("impact"));
+$("modeOnset").addEventListener("click", () => setMode("onset"));
+$("thresh").addEventListener("input", (e) => {
+  settings.thresh = +e.target.value;
+  $("threshOut").textContent = settings.thresh.toFixed(1) + " H/s";
+});
+$("volume").addEventListener("input", (e) => {
+  if (master) master.gain.value = +e.target.value;
+  $("volOut").textContent = Math.round(e.target.value * 100) + "%";
+});
+$("testBtn").addEventListener("click", () => fire(Math.random() < 0.5 ? "left" : "right", 0.7));
+window.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" && e.target.type !== "range") return;
+  if (e.target.tagName === "BUTTON" && e.code === "Space") return;   // the button's own click handles it
+  if (e.key >= "1" && e.key <= "4") setSurface(SURF_KEYS[+e.key - 1]);
+  else if (e.key === "m" || e.key === "M") setMode(settings.mode === "impact" ? "onset" : "impact");
+  else if (e.code === "Space") { e.preventDefault(); fire("left", 0.7); }
+});
+buildSurfaces();
+
+/* ---------------- Hand tracking ---------------- */
+let landmarker = null;
+const status = (msg, err = false) => { const s = $("status"); s.textContent = msg; s.classList.toggle("err", err); };
+
+const trackerReady = (async () => {
+  const files = await FilesetResolver.forVisionTasks(WASM);
+  const opts = (delegate) => ({
+    baseOptions: { modelAssetPath: MODEL, delegate },
+    runningMode: "VIDEO", numHands: 2,
+    minHandDetectionConfidence: 0.6, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+  });
+  try { landmarker = await HandLandmarker.createFromOptions(files, opts("GPU")); }
+  catch { landmarker = await HandLandmarker.createFromOptions(files, opts("CPU")); }
+  status("Hand tracker ready");
+})().catch((e) => { status("Could not load the hand tracker. Check your connection and reload.", true); throw e; });
+
+$("startBtn").addEventListener("click", async () => {
+  const btn = $("startBtn");
+  btn.disabled = true;
+  await initAudio();
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    status("Camera needs a secure page. Open this site over https.", true);
+    btn.disabled = false; return;
+  }
+  status("Asking for camera access…");
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } },
+      audio: false,
+    });
+    const video = $("video");
+    video.srcObject = stream;
+    await video.play();
+    $("videoWrap").style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+    status("Loading hand tracker…");
+    await trackerReady;
+    $("gate").hidden = true;
+    requestAnimationFrame(loop);
+  } catch (e) {
+    const msg = e && e.name === "NotAllowedError"
+      ? "Camera blocked. Allow camera access in your browser's address bar, then press Start again."
+      : e && e.name === "NotFoundError"
+        ? "No camera found. Connect a webcam and press Start again."
+        : "Camera could not start: " + (e && e.message ? e.message : e);
+    status(msg, true);
+    btn.disabled = false;
+  }
+});
+
+/* ---------------- Main loop ---------------- */
+const detectors = new Map();
+const flashUntil = new Map();
+let lastVideoTime = -1, fps = 0, procMs = 0, lastFrameT = 0;
+const overlay = $("overlay"), octx = overlay.getContext("2d");
+const cue = $("cue"), cctx = cue.getContext("2d");
+
+function fitCanvas(c, g) {
+  const dpr = window.devicePixelRatio || 1, r = c.getBoundingClientRect();
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [r.width, r.height];
+}
+
+function loop(now) {
+  const video = $("video");
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    const t0 = performance.now();
+    const res = landmarker.detectForVideo(video, t0);
+    procMs = 0.9 * procMs + 0.1 * (performance.now() - t0);
+    if (lastFrameT) fps = 0.9 * fps + 0.1 * (1000 / (t0 - lastFrameT));
+    lastFrameT = t0;
+    drawHands(res, t0 / 1000);
+    $("hudFps").textContent = fps.toFixed(0);
+    $("hudMs").textContent = procMs.toFixed(1);
+    $("hudHands").textContent = res.landmarks.length;
+  }
+  drawCue(now);
+  requestAnimationFrame(loop);
+}
+
+function drawHands(res, t) {
+  const [w, h] = fitCanvas(overlay, octx);
+  octx.clearRect(0, 0, w, h);
+  const seen = new Set();
+  res.landmarks.forEach((lms, i) => {
+    // The camera image is not mirrored, so MediaPipe's "Left" is the performer's right hand.
+    const cat = res.handedness[i]?.[0]?.categoryName || "Left";
+    let foot = cat === "Left" ? "right" : "left";
+    if (seen.has(foot)) foot = foot === "left" ? "right" : "left";
+    seen.add(foot);
+
+    const px = PALM.reduce((a, k) => a + lms[k].x, 0) / PALM.length;
+    const py = PALM.reduce((a, k) => a + lms[k].y, 0) / PALM.length;
+    if (!detectors.has(foot)) detectors.set(foot, new StepDetector());
+    const det = detectors.get(foot);
+    const vel = det.update(py, t);
+    if (vel !== null) { fire(foot, vel); flashUntil.set(foot, t + 0.12); }
+
+    // Draw mirrored to match the video.
+    const X = (x) => (1 - x) * w, Y = (y) => y * h;
+    const colour = foot === "left" ? COL.left : COL.right;
+    octx.fillStyle = "rgba(233,230,223,0.85)";
+    for (const p of lms) { octx.beginPath(); octx.arc(X(p.x), Y(p.y), 2.5, 0, Math.PI * 2); octx.fill(); }
+    const cx = X(px), cy = Y(py);
+    if ((flashUntil.get(foot) || 0) > t) {
+      octx.fillStyle = colour; octx.globalAlpha = 0.35;
+      octx.beginPath(); octx.arc(cx, cy, 46, 0, Math.PI * 2); octx.fill();
+      octx.globalAlpha = 1;
+    }
+    octx.fillStyle = det.state === "ARMED" ? colour : det.state === "FALLING" ? COL.amber : COL.muted;
+    octx.beginPath(); octx.arc(cx, cy, 11, 0, Math.PI * 2); octx.fill();
+    // Speed meter beside the palm, with the threshold line.
+    const k = Math.min(70, h * 0.09);
+    const bar = Math.max(-2, Math.min(5, det.vy)) * (k / 2);
+    octx.fillRect(cx + 20, Math.min(cy, cy + bar), 8, Math.abs(bar));
+    octx.strokeStyle = COL.amber; octx.lineWidth = 2;
+    octx.beginPath(); octx.moveTo(cx + 16, cy + settings.thresh * (k / 2)); octx.lineTo(cx + 32, cy + settings.thresh * (k / 2)); octx.stroke();
+    octx.font = "500 12px 'IBM Plex Mono', monospace"; octx.fillStyle = COL.fg;
+    octx.fillText(`${foot === "left" ? "L" : "R"} · ${det.state.toLowerCase()}`, cx - 30, cy - 22);
+  });
+  for (const k of [...detectors.keys()]) if (!seen.has(k)) detectors.delete(k);
+}
+
+function drawCue(now) {
+  const [w, h] = fitCanvas(cue, cctx);
+  const span = 8000, padL = 30, padR = 12, top = 10, bottom = 22;
+  const laneH = (h - top - bottom) / 2;
+  const xAt = (t) => padL + (1 - (now - t) / span) * (w - padL - padR);
+  cctx.clearRect(0, 0, w, h);
+  // grid: one line per second
+  cctx.font = "11px 'IBM Plex Mono', monospace";
+  cctx.textAlign = "center";
+  for (let s = 0; s <= 8; s++) {
+    const x = padL + (s / 8) * (w - padL - padR);
+    cctx.strokeStyle = COL.line; cctx.lineWidth = 1;
+    cctx.beginPath(); cctx.moveTo(x, top); cctx.lineTo(x, h - bottom); cctx.stroke();
+    if (s % 2 === 0 || w > 520) { cctx.fillStyle = COL.muted; cctx.fillText(s === 8 ? "now" : `-${8 - s}s`, x, h - 6); }
+  }
+  cctx.textAlign = "left";
+  cctx.fillStyle = COL.muted;
+  cctx.fillText("L", 8, top + laneH / 2 + 4);
+  cctx.fillText("R", 8, top + laneH * 1.5 + 4);
+  cctx.strokeStyle = COL.line;
+  cctx.beginPath(); cctx.moveTo(padL, top + laneH); cctx.lineTo(w - padR, top + laneH); cctx.stroke();
+  while (cueEvents.length && now - cueEvents[0].t > span) cueEvents.shift();
+  for (const ev of cueEvents) {
+    const x = xAt(ev.t), lane = ev.foot === "left" ? 0 : 1;
+    const base = top + laneH * (lane + 1) - 4, bh = Math.max(3, ev.vel * (laneH - 10));
+    cctx.fillStyle = ev.foot === "left" ? COL.left : COL.right;
+    cctx.fillRect(x - 2, base - bh, 4, bh);
+  }
+  // playhead
+  cctx.fillStyle = COL.amber;
+  cctx.fillRect(w - padR - 1, top, 2, h - top - bottom);
+}
+
+// Keep the cue track drawing (and its scale correct) before the camera starts.
+(function idle(now) { if ($("gate").hidden) return; drawCue(now); requestAnimationFrame(idle); })(performance.now());
+</script>
+</body>
+</html>

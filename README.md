@@ -3,6 +3,9 @@
 Perform footstep foley with your hands in front of a webcam.
 Hand tracking (MediaPipe) → step detection → real-time footsteps **and MIDI into your DAW**.
 
+**Try it in your browser:** https://atharvabankarsound.github.io/Gesture-foley/  
+No install needed: allow camera access and tap your hands.
+
 Listen to the built-in surfaces: [`media/surfaces_demo.wav`](media/surfaces_demo.wav)
 
 ## Setup (macOS)
