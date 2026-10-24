@@ -6,22 +6,33 @@ Hand tracking (MediaPipe) → gesture detection → real-time sound **and MIDI i
 **Try it in your browser:** https://atharvabankarsound.github.io/Gesture-foley/  
 No install needed: allow camera access and touch your thumb to a fingertip.
 
-### Browser version: gestures
+### Browser version
 
-| Gesture | Footsteps | Cinematic | Guns | Cloth | Movement |
+Touch your thumb to one fingertip, then open your hand again. One touch plays one sound.
+
+| Touch | Footsteps | Cinematic | Guns | Cloth | Movement |
 |---|---|---|---|---|---|
 | Thumb + index | Step | Hit | Shot | Grab | Whoosh |
 | Thumb + middle | Scuff | Braam | Reload | Snap | Long whoosh |
 | Thumb + ring | Squeak | Riser | Shell drop | Zip | Punch |
-| Fist | Stomp | Boom | Burst | Body fall | Body hit |
-| Swipe sideways | Shuffle | Whoosh | Whiz-by | Swish | Swing |
-| Move open hand | – | Drone | – | Rustle | Air |
+| Thumb + pinky | Stomp | Boom | Burst | Body fall | Body hit |
 
-How fast your fingers close sets the velocity. Hand height shapes the tone, and the left
-hand plays on the left of the stereo field, the right hand on the right. Every folder has
-several presets, and the Intensity, Tone, Space, Pitch, Variation and Texture knobs shape the sound.
+**Use your own samples.** Drag audio files onto a finger slot, or press *Load a sample folder*
+and pick a folder laid out like `Footsteps/Index/step_01.wav`. Several samples in one slot play
+in random order, never the same one twice in a row. Samples are saved in your browser, so they're
+still there next time. Empty slots use a synth placeholder.
 
-Code: `docs/gestures.js` (gesture detection), `docs/sounds.js` (sound synthesis), `docs/app.js` (UI).
+**Why it's precise:**
+- Fingertips are smoothed with a One Euro filter: steady when your hand is still, responsive when it moves.
+- Each touch plays once. A finger re-arms only after it opens again (a filled dot on screen means ready, hollow means open your fingers).
+- Only the clearly closest finger can play, so two sounds never fire together.
+- A hand entering the frame is ignored for 0.3 s, fast hand movement blocks triggers, and a fist doesn't count.
+
+How fast your fingers close sets the velocity (louder and brighter). *Dynamics* sets how much that matters,
+*Variation* adds small random pitch and level changes, and *Reverb* adds space.
+
+Code: `docs/gestures.js` (gesture detection), `docs/samples.js` (sample playback), `docs/sounds.js` (synth placeholders), `docs/app.js` (interface).
+Bundled samples for everyone can go in `docs/samples/` (see the README there).
 
 Listen to the built-in surfaces: [`media/surfaces_demo.wav`](media/surfaces_demo.wav)
 

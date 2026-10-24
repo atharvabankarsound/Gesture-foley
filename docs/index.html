@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gesture Foley</title>
-<meta name="description" content="Perform foley with your hands in front of your webcam: footsteps, cinematic hits, guns, cloth and movement. Runs entirely in your browser.">
+<meta name="description" content="Perform foley with your hands in front of your webcam. Touch your thumb to a fingertip to play your own samples. Runs entirely in your browser.">
 <style>
-/* Layout: library on the left, camera stage in the centre, performance rack on the right,
-   cue track across the bottom. Dark frosted-glass panels over a softly lit background. */
+/* Layout: sound folders on the left, camera stage in the centre with the four finger
+   slots under it, a short settings panel on the right, cue track across the bottom.
+   Dark frosted-glass panels over a softly lit background. */
 :root {
   --bg: #05060a;
   --glass: rgba(255, 255, 255, 0.06);
@@ -15,16 +16,15 @@
   --stroke: rgba(255, 255, 255, 0.13);
   --stroke-soft: rgba(255, 255, 255, 0.07);
   --fg: #f5f5f7;
-  --muted: rgba(235, 235, 245, 0.62);
-  --faint: rgba(235, 235, 245, 0.34);
+  --muted: rgba(235, 235, 245, 0.64);
+  --faint: rgba(235, 235, 245, 0.36);
   --accent: #0a84ff;
+  --good: #30d158;
   --left: #64d2ff;
   --right: #ff9f0a;
   --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --r-lg: 24px;
-  --r-md: 16px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -44,7 +44,6 @@ button, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* soft coloured light behind the glass */
 .ambient { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 .ambient i { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.5; }
 .ambient .o1 { width: 46vw; height: 46vw; left: -10vw; top: -14vw; background: #1d3fa8; animation: drift 26s ease-in-out infinite alternate; }
@@ -56,7 +55,7 @@ button { cursor: pointer; }
 .glass {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
   border: 1px solid var(--stroke);
-  border-radius: var(--r-lg);
+  border-radius: 24px;
   -webkit-backdrop-filter: blur(30px) saturate(170%);
   backdrop-filter: blur(30px) saturate(170%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 24px 60px rgba(0, 0, 0, 0.45);
@@ -74,17 +73,17 @@ button { cursor: pointer; }
 h1 { font: 650 19px/1.1 var(--display); letter-spacing: -0.01em; margin: 0; }
 .byline { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
 .pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
-  background: var(--glass); border: 1px solid var(--stroke-soft); font: 12.5px var(--ui); color: var(--muted); font-variant-numeric: tabular-nums; }
+  background: var(--glass); border: 1px solid var(--stroke-soft); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
-.pill.live .dot { background: #30d158; box-shadow: 0 0 10px #30d158; }
+.pill.live .dot { background: var(--good); box-shadow: 0 0 10px var(--good); }
 .gh { font-size: 13px; text-decoration: none; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--stroke-soft); background: var(--glass); }
 .gh:hover { background: var(--glass-hi); }
 
-/* three columns */
-.layout { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; gap: 14px; align-items: start; }
+/* columns */
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr) 270px; gap: 14px; align-items: start; }
 @media (max-width: 1180px) {
-  .layout { grid-template-columns: 220px minmax(0, 1fr); }
-  .rack { grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .layout { grid-template-columns: 200px minmax(0, 1fr); }
+  .side { grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 }
 @media (max-width: 760px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
@@ -92,98 +91,89 @@ h1 { font: 650 19px/1.1 var(--display); letter-spacing: -0.01em; margin: 0; }
 }
 .panel-title { font: 600 11px var(--ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
 
-/* library */
+/* folders */
 .library { padding: 16px 12px; display: grid; gap: 10px; }
 .library .panel-title { padding: 0 6px; }
 .cats { display: grid; gap: 4px; }
-.cat-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px;
+.cat-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px;
   background: transparent; border: 1px solid transparent; text-align: left; font-weight: 500; }
 .cat-btn:hover { background: var(--glass); }
-.cat-btn[aria-expanded="true"] { background: var(--glass-hi); border-color: var(--stroke-soft); }
+.cat-btn[aria-pressed="true"] { background: var(--glass-hi); border-color: var(--stroke-soft); }
 .cat-btn svg { flex: none; color: var(--accent); }
-.cat-btn .count { margin-left: auto; font: 12px var(--mono); color: var(--faint); }
-.presets { list-style: none; margin: 2px 0 6px; padding: 0 0 0 20px; display: grid; gap: 2px; }
-.preset { width: 100%; text-align: left; padding: 7px 10px; border-radius: 10px; background: transparent; border: 0; color: var(--muted); display: flex; align-items: center; gap: 9px; }
-.preset::before { content: ""; width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--faint); flex: none; }
-.preset:hover { color: var(--fg); background: var(--glass); }
-.preset[aria-pressed="true"] { color: var(--fg); background: rgba(10, 132, 255, 0.18); }
-.preset[aria-pressed="true"]::before { background: var(--accent); border-color: var(--accent); }
-.lib-note { margin: 4px 6px 0; font-size: 12px; color: var(--faint); }
+.cat-btn .count { margin-left: auto; font: 11.5px var(--mono); color: var(--faint); }
+.cat-btn .count.has { color: var(--good); }
+.cat-btn kbd { font: 11px var(--mono); color: var(--faint); }
+.lib-note { margin: 2px 6px 0; font-size: 12px; color: var(--faint); }
 
 /* stage */
 .stage { padding: 16px; display: grid; gap: 14px; min-width: 0; }
-.stage-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.stage-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .eyebrow { font: 600 11px var(--ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 h2 { font: 650 24px/1.15 var(--display); letter-spacing: -0.015em; margin: 2px 0 0; }
-.btn { padding: 8px 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--stroke-soft); font-size: 13px; display: inline-flex; gap: 8px; align-items: center; }
-.btn:hover { background: var(--glass-hi); }
-kbd { font: 11px var(--mono); color: var(--faint); }
-.video-wrap { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden;
-  background: #000; border: 1px solid var(--stroke-soft); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.6); }
+.hint { margin: 0; font-size: 13px; color: var(--muted); max-width: 46ch; }
+.video-wrap { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: #000; border: 1px solid var(--stroke-soft); }
 video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
 #overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
 .gate { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center;
   background: radial-gradient(ellipse at center, rgba(20, 24, 34, 0.75), rgba(5, 6, 10, 0.95)); }
-.gate p { margin: 0; color: var(--muted); max-width: 42ch; }
+.gate p { margin: 0; color: var(--muted); max-width: 44ch; }
 .gate .status { font: 12.5px var(--mono); color: var(--left); min-height: 1.5em; }
 .gate .status.err { color: var(--right); }
 .btn-start { padding: 13px 28px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; font-size: 15px;
   background: linear-gradient(180deg, #2f95ff, #0a6fe0); box-shadow: 0 8px 24px rgba(10, 132, 255, 0.35), inset 0 1px 0 rgba(255,255,255,0.3); }
 .btn-start:disabled { opacity: 0.55; cursor: wait; }
 
-/* gesture tiles */
-.gestures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-@media (max-width: 520px) { .gestures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.gtile { position: relative; text-align: left; padding: 10px 12px; border-radius: var(--r-md); background: var(--glass); border: 1px solid var(--stroke-soft);
-  display: grid; gap: 2px; transition: background 0.15s, border-color 0.15s, opacity 0.15s; min-width: 0; }
-.gtile:hover { background: var(--glass-hi); }
-.gtile .how { font-size: 11.5px; color: var(--faint); }
-.gtile .snd { font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gtile .lamps { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; }
-.gtile .lamps i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.12); transition: background 0.08s, box-shadow 0.08s; }
-.gtile .lamps i.on-l { background: var(--left); box-shadow: 0 0 10px var(--left); }
-.gtile .lamps i.on-r { background: var(--right); box-shadow: 0 0 10px var(--right); }
-.gtile[aria-pressed="false"] { opacity: 0.42; }
-.gtile[aria-pressed="false"] .snd { text-decoration: line-through; }
-.gtile.na { opacity: 0.3; cursor: default; }
-.gtile .meter { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.1); margin-top: 5px; overflow: hidden; }
-.gtile .meter b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--left), var(--accent)); }
-.stage .hint { margin: -4px 0 0; font-size: 12px; color: var(--faint); }
+/* finger slots */
+.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 900px) { .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.slot { position: relative; border-radius: 16px; background: var(--glass); border: 1px solid var(--stroke-soft); padding: 12px; display: grid; gap: 6px; min-width: 0; transition: border-color 0.15s, background 0.15s; }
+.slot.drag { border-color: var(--accent); background: rgba(10, 132, 255, 0.14); }
+.slot.hit { border-color: rgba(255,255,255,0.4); }
+.slot .finger { font-size: 11.5px; color: var(--faint); display: flex; align-items: center; gap: 6px; }
+.slot .finger b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 6px; background: rgba(255,255,255,0.08); font: 600 11px var(--mono); color: var(--muted); }
+.slot .snd { font: 650 17px/1.2 var(--display); }
+.slot .src { font-size: 12px; color: var(--muted); min-height: 2.6em; overflow-wrap: anywhere; }
+.slot .src.synth { color: var(--faint); }
+.slot .src .n { color: var(--good); font-weight: 600; }
+.slot .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.mini { padding: 5px 10px; border-radius: 999px; font-size: 12px; background: rgba(255,255,255,0.07); border: 1px solid var(--stroke-soft); }
+.mini:hover { background: var(--glass-hi); }
+.mini.primary { background: rgba(10, 132, 255, 0.22); border-color: rgba(10, 132, 255, 0.45); }
+.slot .lamps { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; }
+.slot .lamps i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.12); transition: background 0.08s, box-shadow 0.08s; }
+.slot .lamps i.on-l { background: var(--left); box-shadow: 0 0 10px var(--left); }
+.slot .lamps i.on-r { background: var(--right); box-shadow: 0 0 10px var(--right); }
 
-/* rack */
-.rack { padding: 16px; display: grid; gap: 18px; }
+/* side panel */
+.side { padding: 16px; display: grid; gap: 18px; }
 .sect { display: grid; gap: 10px; align-content: start; }
-.knobs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 6px; }
-.knob { display: grid; justify-items: center; gap: 2px; touch-action: none; user-select: none; cursor: ns-resize; border-radius: 12px; padding: 4px 0; }
-.knob svg { width: 58px; height: 58px; display: block; }
-.knob .kv { font: 12px var(--mono); font-variant-numeric: tabular-nums; }
-.knob .kl { font-size: 11.5px; color: var(--muted); }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.row label, .row span.l { font-size: 13px; }
+.row label { font-size: 13px; }
 .row output { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
-.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; cursor: pointer; }
-.switch input { position: absolute; opacity: 0; pointer-events: none; }
-.switch .track { width: 38px; height: 23px; border-radius: 999px; background: rgba(255,255,255,0.16); position: relative; flex: none; transition: background 0.15s; }
-.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 19px; height: 19px; border-radius: 50%; background: #fff; transition: transform 0.15s; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
-.switch input:checked + .track { background: #30d158; }
-.switch input:checked + .track::after { transform: translateX(15px); }
-.switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sub { margin: -4px 0 0; font-size: 12px; color: var(--faint); }
-.readout { border-radius: var(--r-md); background: rgba(0,0,0,0.25); border: 1px solid var(--stroke-soft); padding: 12px 14px; display: grid; gap: 2px; }
-.readout .big { font: 650 18px var(--display); }
-.readout .meta { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.knobs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.knob { display: grid; justify-items: center; gap: 2px; touch-action: none; user-select: none; cursor: ns-resize; border-radius: 12px; padding: 4px 0; }
+.knob svg { width: 56px; height: 56px; display: block; }
+.knob .kv { font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+.knob .kl { font-size: 11.5px; color: var(--muted); }
+.btn { padding: 9px 14px; border-radius: 12px; background: var(--glass); border: 1px solid var(--stroke-soft); font-size: 13px; text-align: left; }
+.btn:hover { background: var(--glass-hi); }
+.btn.danger { color: #ff6961; }
+.note { font-size: 12px; color: var(--muted); min-height: 1.5em; margin: 0; }
+.readout { border-radius: 16px; background: rgba(0,0,0,0.25); border: 1px solid var(--stroke-soft); padding: 12px 14px; display: grid; gap: 2px; }
+.readout .big { font: 650 17px var(--display); overflow-wrap: anywhere; }
 .readout .big.left { color: var(--left); }
 .readout .big.right { color: var(--right); }
+.readout .meta { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 /* cue track */
 .timeline { padding: 14px 16px 16px; display: grid; gap: 10px; }
 .tl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px 16px; flex-wrap: wrap; }
 .tl-head h3 { margin: 0; font: 650 15px var(--display); }
 .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
-.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
-#cue { width: 100%; height: 176px; display: block; border-radius: 14px; background: rgba(0,0,0,0.28); }
-
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+#cue { width: 100%; height: 140px; display: block; border-radius: 14px; background: rgba(0,0,0,0.28); }
 footer { color: var(--faint); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px 20px; padding: 0 6px; }
 footer a { color: var(--muted); }
 </style>
@@ -205,19 +195,19 @@ footer a { color: var(--muted); }
   </header>
 
   <div class="layout">
-    <nav class="library glass" aria-label="Sound library">
-      <div class="panel-title">Library</div>
+    <nav class="library glass" aria-label="Sound folders">
+      <div class="panel-title">Folders</div>
       <div class="cats" id="cats"></div>
-      <p class="lib-note">All sounds are synthesized live. Keys 1–5 pick a preset.</p>
+      <p class="lib-note">Keys 1–5 switch folders. Folders without samples use a synth placeholder.</p>
     </nav>
 
     <main class="stage glass">
       <div class="stage-head">
         <div>
-          <div class="eyebrow" id="stageCat">Footsteps</div>
-          <h2 id="stagePreset">Concrete</h2>
+          <div class="eyebrow">Folder</div>
+          <h2 id="stageCat">Footsteps</h2>
         </div>
-        <button class="btn" id="testBtn" type="button">Play test <kbd>Space</kbd></button>
+        <p class="hint">Touch your thumb to one fingertip, then open your hand again. One touch plays one sound.</p>
       </div>
 
       <div class="video-wrap" id="videoWrap">
@@ -225,38 +215,40 @@ footer a { color: var(--muted); }
         <canvas id="overlay"></canvas>
         <div class="gate" id="gate">
           <button class="btn-start" id="startBtn" type="button">Start camera</button>
-          <p>Touch your thumb to a fingertip to play a sound. Your video stays on this device and is never uploaded.</p>
+          <p>Hold your hand up, palm facing the camera, about an arm's length away. Your video stays on this device.</p>
           <div class="status" id="status" role="status">Loading hand tracker…</div>
         </div>
       </div>
 
-      <div class="gestures" id="gestures"></div>
-      <p class="hint">Click a gesture to turn it on or off. Left hand plays on the left, right hand on the right.</p>
+      <div class="slots" id="slots"></div>
     </main>
 
-    <aside class="rack glass" aria-label="Performance controls">
-      <div class="sect">
-        <div class="panel-title">Performance</div>
-        <div class="knobs" id="knobs"></div>
-        <p class="sub">Drag a knob up or down. Double-click to reset.</p>
-      </div>
-
+    <aside class="side glass" aria-label="Settings">
       <div class="sect">
         <div class="panel-title">Touch</div>
-        <div class="row"><label for="touch">Touch distance</label><output id="touchOut">0.25</output></div>
-        <input type="range" id="touch" min="0.12" max="0.45" step="0.01" value="0.25">
-        <p class="sub">Raise it if touches are missed, lower it if sounds fire before your fingers meet.</p>
-        <label class="switch"><span>Early trigger</span><input type="checkbox" id="early"><span class="track"></span></label>
-        <label class="switch"><span>Hand height shapes tone</span><input type="checkbox" id="heightTone" checked><span class="track"></span></label>
+        <div class="row"><label for="touch">Touch distance</label><output id="touchOut">0.22</output></div>
+        <input type="range" id="touch" min="0.12" max="0.40" step="0.01" value="0.22">
+        <p class="sub">Raise it if touches are missed. Lower it if sounds play before your fingers meet.</p>
       </div>
 
       <div class="sect">
-        <div class="row"><label for="volume">Output</label><output id="volOut">80%</output></div>
+        <div class="panel-title">Sound</div>
+        <div class="row"><label for="volume">Volume</label><output id="volOut">80%</output></div>
         <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8">
-        <div class="readout" aria-live="polite">
-          <div class="big" id="lastName">No sounds yet</div>
-          <div class="meta" id="lastMeta">Touch your thumb to your index finger</div>
-        </div>
+        <div class="knobs" id="knobs"></div>
+      </div>
+
+      <div class="sect">
+        <div class="panel-title">Samples</div>
+        <button class="btn" id="folderBtn" type="button">Load a sample folder…</button>
+        <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+        <button class="btn danger" id="clearAllBtn" type="button">Remove all my samples</button>
+        <p class="note" id="sampleNote" role="status"></p>
+      </div>
+
+      <div class="readout" aria-live="polite">
+        <div class="big" id="lastName">Nothing played yet</div>
+        <div class="meta" id="lastMeta">Touch your thumb to your index finger</div>
       </div>
     </aside>
   </div>
@@ -270,8 +262,8 @@ footer a { color: var(--muted); }
   </section>
 
   <footer>
-    <span>Hand tracking by MediaPipe. Sound by the Web Audio API.</span>
-    <span>The <a href="https://github.com/atharvabankarsound/Gesture-foley">Python version</a> also sends MIDI to your DAW.</span>
+    <span>Hand tracking by MediaPipe. Your samples are saved in this browser only.</span>
+    <span>The <a href="https://github.com/atharvabankarsound/Gesture-foley">Python version</a> sends MIDI to your DAW.</span>
   </footer>
 </div>
 

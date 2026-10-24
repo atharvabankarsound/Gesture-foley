@@ -10,8 +10,15 @@ export const A = { ctx: null, bus: null, master: null, wet: null, noise: null, t
 
 /* ------------------------------------------------------------------ engine */
 
+/** Start audio after a click (browsers only allow sound after the user interacts). */
 export function initAudio(volume = 0.8) {
-  if (A.ctx) return A.ctx.resume();
+  createAudio(volume);
+  return A.ctx.resume();
+}
+
+/** Build the audio graph. Can run before any click (it stays suspended), so samples can be decoded early. */
+export function createAudio(volume = 0.8) {
+  if (A.ctx) return A.ctx;
   const ctx = (A.ctx = new AudioContext({ latencyHint: "interactive" }));
   const comp = ctx.createDynamicsCompressor();      // glue + protects against clipping
   comp.threshold.value = -12; comp.knee.value = 6; comp.ratio.value = 6;
@@ -26,7 +33,7 @@ export function initAudio(volume = 0.8) {
   A.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const d = A.noise.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  return ctx.resume();
+  return ctx;
 }
 
 function impulse(seconds) {
