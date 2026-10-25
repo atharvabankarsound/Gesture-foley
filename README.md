@@ -10,17 +10,31 @@ No install needed: allow camera access and touch your thumb to a fingertip.
 
 Touch your thumb to one fingertip, then open your hand again. One touch plays one sound.
 
-| Touch | Footsteps | Cinematic | Guns | Cloth | Movement |
-|---|---|---|---|---|---|
-| Thumb + index | Step | Hit | Shot | Grab | Whoosh |
-| Thumb + middle | Scuff | Braam | Reload | Snap | Long whoosh |
-| Thumb + ring | Squeak | Riser | Shell drop | Zip | Punch |
-| Thumb + pinky | Stomp | Boom | Burst | Body fall | Body hit |
+| Touch | Footsteps | Cloth | Movement | Guns | Jewellery | Cinematic |
+|---|---|---|---|---|---|---|
+| Thumb + index | Step | Grab | Whoosh | Shot | Jingle | Hit |
+| Thumb + middle | Scuff | Snap | Long whoosh | Reload | Shake | Braam |
+| Thumb + ring | Squeak | Zip | Punch | Shell drop | Drop | Riser |
+| Thumb + pinky | Stomp | Body fall | Body hit | Burst | Handful | Boom |
 
-**Use your own samples.** Drag audio files onto a finger slot, or press *Load a sample folder*
-and pick a folder laid out like `Footsteps/Index/step_01.wav`. Several samples in one slot play
-in random order, never the same one twice in a row. Samples are saved in your browser, so they're
-still there next time. Empty slots use a synth placeholder.
+**Blend pad.** Every folder has an XY pad with a texture in each corner. Pick the corner textures
+with the arrows, then drag the point: each hit mixes the four textures by how close the point is
+to each corner (equal-power, so loudness stays even). Turn on *Steer the blend with your hand*
+to move the point with your palm while you perform.
+
+| Folder | Textures |
+|---|---|
+| Footsteps | Concrete, Wood, Gravel, Grass, Snow, Dirt, Puddle, Metal, Heels, Boots, Sneakers |
+| Cloth | Cotton, Denim, Leather, Nylon, Silk, Canvas, Wool, Armour |
+| Movement | Swish, Heavy air, Blade, Body, Cape, Stick |
+| Guns | Pistol, Rifle, Shotgun, Silenced, Revolver, Machine gun |
+| Jewellery | Keys, Coins, Chain, Bracelet, Beads, Bells |
+| Cinematic | Epic, Deep, Metal, Sci-Fi, Taiko, Thunder |
+
+**Use your own samples.** The sound library grid has a cell for every texture and finger: drop audio
+files on a cell, or use *Load a sample folder* with folders laid out like `Footsteps/Gravel/Step/step_01.wav`.
+Several samples in one cell play in random order, never the same one twice in a row. Samples are saved in
+your browser. Empty cells use a synth placeholder.
 
 **Why it's precise:**
 - Fingertips are smoothed with a One Euro filter: steady when your hand is still, responsive when it moves.
@@ -31,8 +45,9 @@ still there next time. Empty slots use a synth placeholder.
 How fast your fingers close sets the velocity (louder and brighter). *Dynamics* sets how much that matters,
 *Variation* adds small random pitch and level changes, and *Reverb* adds space.
 
-Code: `docs/gestures.js` (gesture detection), `docs/samples.js` (sample playback), `docs/sounds.js` (synth placeholders), `docs/app.js` (interface).
-Bundled samples for everyone can go in `docs/samples/` (see the README there).
+Code: `docs/gestures.js` (gesture detection), `docs/blend.js` (blend pad maths), `docs/samples.js` (sample playback),
+`docs/sounds.js` (synth placeholders), `docs/app.js` (interface). Bundled samples for everyone can go in
+`docs/samples/` (see the README there).
 
 Listen to the built-in surfaces: [`media/surfaces_demo.wav`](media/surfaces_demo.wav)
 

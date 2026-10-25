@@ -6,8 +6,8 @@
 <title>Gesture Foley</title>
 <meta name="description" content="Perform foley with your hands in front of your webcam. Touch your thumb to a fingertip to play your own samples. Runs entirely in your browser.">
 <style>
-/* Layout: sound folders on the left, camera stage in the centre with the four finger
-   slots under it, a short settings panel on the right, cue track across the bottom.
+/* Layout: sound folders on the left, camera stage in the centre with the blend pad and
+   four finger slots under it, settings on the right, sound library and cue track below.
    Dark frosted-glass panels over a softly lit background. */
 :root {
   --bg: #05060a;
@@ -123,26 +123,62 @@ video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: con
   background: linear-gradient(180deg, #2f95ff, #0a6fe0); box-shadow: 0 8px 24px rgba(10, 132, 255, 0.35), inset 0 1px 0 rgba(255,255,255,0.3); }
 .btn-start:disabled { opacity: 0.55; cursor: wait; }
 
-/* finger slots */
-.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-@media (max-width: 900px) { .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.slot { position: relative; border-radius: 16px; background: var(--glass); border: 1px solid var(--stroke-soft); padding: 12px; display: grid; gap: 6px; min-width: 0; transition: border-color 0.15s, background 0.15s; }
-.slot.drag { border-color: var(--accent); background: rgba(10, 132, 255, 0.14); }
-.slot.hit { border-color: rgba(255,255,255,0.4); }
+/* blend pad + finger slots */
+.perform { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .perform { grid-template-columns: minmax(0, 1fr); } }
+.pad-box { border-radius: 18px; background: rgba(0,0,0,0.22); border: 1px solid var(--stroke-soft); padding: 10px 12px 12px; display: grid; gap: 8px; }
+.pad-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pad-head .tools { display: flex; gap: 6px; }
+.corners { display: flex; justify-content: space-between; gap: 6px; }
+.corner { display: flex; align-items: center; gap: 2px; min-width: 0; font-size: 12.5px; font-weight: 600; }
+.corner .cname { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 9em; }
+.corner .cname i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.corner .pct { font: 11px var(--mono); color: var(--faint); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.arrow { width: 22px; height: 22px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); font-size: 10px; line-height: 1; padding: 0; flex: none; }
+.arrow:hover { background: var(--glass-hi); color: var(--fg); }
+.pad { position: relative; width: 100%; max-width: 100%; aspect-ratio: 1; border-radius: 14px; overflow: hidden; touch-action: none; cursor: crosshair;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--stroke-soft); }
+.pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.puck { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #fff; pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(255,255,255,0.18), 0 0 18px rgba(255,255,255,0.55); }
+.pad-hint { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 11.5px; color: var(--faint); pointer-events: none; }
+.steer { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+
+.slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.slot { position: relative; border-radius: 16px; background: var(--glass); border: 1px solid var(--stroke-soft); padding: 12px; display: grid; gap: 4px; min-width: 0; align-content: start; transition: border-color 0.15s; }
+.slot.hit { border-color: rgba(255,255,255,0.45); }
 .slot .finger { font-size: 11.5px; color: var(--faint); display: flex; align-items: center; gap: 6px; }
 .slot .finger b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 6px; background: rgba(255,255,255,0.08); font: 600 11px var(--mono); color: var(--muted); }
 .slot .snd { font: 650 17px/1.2 var(--display); }
-.slot .src { font-size: 12px; color: var(--muted); min-height: 2.6em; overflow-wrap: anywhere; }
-.slot .src.synth { color: var(--faint); }
-.slot .src .n { color: var(--good); font-weight: 600; }
-.slot .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.slot .src { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.slot .src b { color: var(--good); font-weight: 600; }
+.slot .acts { margin-top: 4px; }
 .mini { padding: 5px 10px; border-radius: 999px; font-size: 12px; background: rgba(255,255,255,0.07); border: 1px solid var(--stroke-soft); }
 .mini:hover { background: var(--glass-hi); }
-.mini.primary { background: rgba(10, 132, 255, 0.22); border-color: rgba(10, 132, 255, 0.45); }
 .slot .lamps { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; }
 .slot .lamps i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.12); transition: background 0.08s, box-shadow 0.08s; }
 .slot .lamps i.on-l { background: var(--left); box-shadow: 0 0 10px var(--left); }
 .slot .lamps i.on-r { background: var(--right); box-shadow: 0 0 10px var(--right); }
+
+/* sound library grid */
+.libsec { padding: 14px 16px 16px; display: grid; gap: 10px; }
+.libsec p { margin: 0; font-size: 12.5px; color: var(--muted); }
+.libsec code { font: 12px var(--mono); color: var(--fg); background: rgba(255,255,255,0.07); padding: 1px 6px; border-radius: 6px; }
+.grid-scroll { overflow-x: auto; border-radius: 14px; border: 1px solid var(--stroke-soft); }
+table.lib { width: 100%; border-collapse: collapse; min-width: 640px; font-size: 13px; }
+table.lib th, table.lib td { padding: 6px 8px; border-bottom: 1px solid var(--stroke-soft); text-align: left; }
+table.lib thead th { font: 600 11px var(--ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); background: rgba(0,0,0,0.2); }
+table.lib thead th span { display: block; text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--fg); }
+table.lib tbody th { font-weight: 600; white-space: nowrap; }
+table.lib tbody th i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; background: transparent; border: 1px solid var(--faint); }
+table.lib tr:last-child th, table.lib tr:last-child td { border-bottom: 0; }
+.cell { display: flex; align-items: center; gap: 4px; }
+.cell .add { flex: 1; min-width: 0; text-align: left; padding: 6px 10px; border-radius: 10px; border: 1px dashed var(--stroke); background: transparent; color: var(--faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell .add:hover { color: var(--fg); border-color: var(--accent); }
+.cell .add.has { border-style: solid; border-color: rgba(48, 209, 88, 0.45); color: var(--good); background: rgba(48, 209, 88, 0.08); }
+.cell.drag .add { border-color: var(--accent); background: rgba(10, 132, 255, 0.16); color: var(--fg); }
+.cell .x { width: 24px; height: 24px; border-radius: 8px; border: 0; background: transparent; color: var(--faint); font-size: 14px; padding: 0; }
+.cell .x:hover { color: #ff6961; background: var(--glass); }
 
 /* side panel */
 .side { padding: 16px; display: grid; gap: 18px; }
@@ -157,6 +193,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .knob svg { width: 56px; height: 56px; display: block; }
 .knob .kv { font: 12px var(--mono); font-variant-numeric: tabular-nums; }
 .knob .kl { font-size: 11.5px; color: var(--muted); }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch .track { width: 38px; height: 23px; border-radius: 999px; background: rgba(255,255,255,0.16); position: relative; flex: none; transition: background 0.15s; }
+.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 19px; height: 19px; border-radius: 50%; background: #fff; transition: transform 0.15s; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+.switch input:checked + .track { background: var(--good); }
+.switch input:checked + .track::after { transform: translateX(15px); }
+.switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn { padding: 9px 14px; border-radius: 12px; background: var(--glass); border: 1px solid var(--stroke-soft); font-size: 13px; text-align: left; }
 .btn:hover { background: var(--glass-hi); }
 .btn.danger { color: #ff6961; }
@@ -198,7 +241,7 @@ footer a { color: var(--muted); }
     <nav class="library glass" aria-label="Sound folders">
       <div class="panel-title">Folders</div>
       <div class="cats" id="cats"></div>
-      <p class="lib-note">Keys 1–5 switch folders. Folders without samples use a synth placeholder.</p>
+      <p class="lib-note">Keys 1–6 switch folders. Numbers show your samples; folders without any use the synth.</p>
     </nav>
 
     <main class="stage glass">
@@ -220,7 +263,26 @@ footer a { color: var(--muted); }
         </div>
       </div>
 
-      <div class="slots" id="slots"></div>
+      <div class="perform">
+        <div class="pad-box">
+          <div class="pad-head">
+            <div class="panel-title">Blend</div>
+            <div class="tools">
+              <button class="mini" id="diceBtn" type="button" title="Pick four random textures">Randomise</button>
+              <button class="mini" id="centreBtn" type="button" title="Move the point to the centre">Centre</button>
+            </div>
+          </div>
+          <div class="corners" id="cornersTop"></div>
+          <div class="pad" id="pad" tabindex="0" role="group" aria-label="Blend pad: drag the point to mix the four corner textures. Arrow keys move it.">
+            <canvas id="padCanvas"></canvas>
+            <div class="puck" id="puck"></div>
+            <div class="pad-hint" id="padHint">Drag the point to blend</div>
+          </div>
+          <div class="corners" id="cornersBottom"></div>
+          <label class="switch steer"><span>Steer the blend with your hand</span><input type="checkbox" id="steer"><span class="track"></span></label>
+        </div>
+        <div class="slots" id="slots"></div>
+      </div>
     </main>
 
     <aside class="side glass" aria-label="Settings">
@@ -252,6 +314,16 @@ footer a { color: var(--muted); }
       </div>
     </aside>
   </div>
+
+  <section class="libsec glass" aria-label="Sound library">
+    <div class="tl-head">
+      <h3>Sound library · <span id="libCat">Footsteps</span></h3>
+      <div class="legend"><span><i style="background:var(--good)"></i>Your samples</span><span>Empty cells use the synth</span></div>
+    </div>
+    <p>Drop audio files on a cell, or click it to choose files. To load many at once, use <b>Load a sample folder</b> with folders laid out as <code>Footsteps/Gravel/Step/</code>. A dot shows which corner of the pad a texture is in.</p>
+    <div class="grid-scroll"><table class="lib" id="libTable"></table></div>
+    <input type="file" id="cellInput" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg,.m4a" multiple hidden>
+  </section>
 
   <section class="timeline glass" aria-label="Cue track">
     <div class="tl-head">

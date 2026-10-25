@@ -174,7 +174,24 @@ const FOOT = {
   gravel: { thumpF: 70, thumpDecay: 0.03, thumpGain: 0.35, noise: ["bandpass", [800, 6000]], nA: 0.002, nD: 0.05, nGain: 0.5, crunch: 60 },
   grass: { thumpF: 60, thumpDecay: 0.03, thumpGain: 0.2, noise: ["highpass", 1500], nA: 0.008, nD: 0.06, nGain: 0.3, crunch: 12 },
   snow: { thumpF: 55, thumpDecay: 0.04, thumpGain: 0.3, noise: ["bandpass", [1200, 7000]], nA: 0.006, nD: 0.07, nGain: 0.6, crunch: 110 },
+  dirt: { thumpF: 65, thumpDecay: 0.035, thumpGain: 0.45, noise: ["bandpass", [300, 2500]], nA: 0.003, nD: 0.045, nGain: 0.7, crunch: 25 },
+  puddle: { thumpF: 70, thumpDecay: 0.03, thumpGain: 0.3, noise: ["bandpass", [600, 3000]], nA: 0.004, nD: 0.06, nGain: 0.35, crunch: 0, splash: 1 },
+  metal: { thumpF: 110, thumpDecay: 0.04, thumpGain: 0.5, noise: ["highpass", 2500], nA: 0.0005, nD: 0.015, nGain: 0.4, crunch: 0, ring: [420, 1130, 2210] },
+  heels: { thumpF: 160, thumpDecay: 0.015, thumpGain: 0.25, noise: ["bandpass", [2500, 7000]], nA: 0.0003, nD: 0.008, nGain: 1.1, crunch: 0, click: 1 },
+  boots: { thumpF: 70, thumpDecay: 0.05, thumpGain: 1.0, noise: ["lowpass", 2200], nA: 0.001, nD: 0.035, nGain: 0.7, crunch: 0 },
+  sneakers: { thumpF: 80, thumpDecay: 0.03, thumpGain: 0.45, noise: ["lowpass", 1400], nA: 0.004, nD: 0.03, nGain: 0.35, crunch: 0 },
 };
+
+/** Water: a filtered splash plus a few bubbles (short rising sine chirps). */
+function splash(c, t, vel, w) {
+  nz(c, t, { type: "bandpass", f: 1800 * c.bright, q: 0.7, peak: 0.9 * w, att: 0.004, dec: 0.08 + 0.05 * vel, dur: 0.6 });
+  nz(c, t + 0.02, { type: "highpass", f: 3500, peak: 0.35 * w, att: 0.01, dec: 0.12, dur: 0.6 });
+  const n = 3 + Math.floor(vel * 5);
+  for (let i = 0; i < n; i++) {
+    const tt = t + 0.01 + Math.random() * 0.18, f = rand(500, 1300) * c.pitch;
+    osc(c, tt, { f, fEnd: f * rand(1.4, 2.2), fTau: 0.012, peak: rand(0.08, 0.2) * w, dec: rand(0.01, 0.03) });
+  }
+}
 
 function filterOf(s, b) {
   const [type, fr] = s.noise;
@@ -187,6 +204,9 @@ function footContact(c, t, s, vel, w) {
   osc(c, t, { f: s.thumpF * p * 2.5, fEnd: s.thumpF * p, fTau: 0.012, peak: s.thumpGain * w, dec: s.thumpDecay });
   nz(c, t, { ...filterOf(s, c.bright), peak: s.nGain * w, att: s.nA, dec: s.nD * (0.7 + 0.6 * vel), dur: 0.4 });
   if (s.crunch) grains(c, t, s.crunch, vel, 0.5 * w, 1800);
+  if (s.splash) splash(c, t, vel, w * s.splash);
+  if (s.ring) s.ring.forEach((f, i) => osc(c, t, { f: f * c.pitch * rv(c, 0.03), peak: (0.18 * w) / (i + 1), dec: 0.12 / (1 + i * 0.5), dur: 0.8 }));
+  if (s.click) osc(c, t, { f: 2600 * c.pitch * rv(c, 0.05), peak: 0.35 * w, dec: 0.006 });
 }
 
 function scuff(c, t, s, w) {
@@ -203,6 +223,8 @@ const GUN = {
   rifle: { crack: 3400, boom: 75, body: 1, tail: 0.55, burst: 3, rate: 0.075, drive: 3.5 },
   shotgun: { crack: 1800, boom: 55, body: 1.4, tail: 0.8, burst: 1, rate: 0.3, drive: 4 },
   silenced: { crack: 900, boom: 140, body: 0.45, tail: 0.08, burst: 3, rate: 0.09, drive: 1.2, silenced: true },
+  revolver: { crack: 2200, boom: 85, body: 1.1, tail: 0.5, burst: 1, rate: 0.25, drive: 3.5 },
+  heavy: { crack: 3000, boom: 60, body: 1.2, tail: 0.7, burst: 6, rate: 0.06, drive: 4 },
 };
 
 function shot(c, t, g, w = 1) {
@@ -258,6 +280,8 @@ const CIN = {
   deep: { sub: 38, noise: 900, tail: 1.5 },
   metal: { sub: 60, noise: 4000, tail: 1.1, metal: true },
   scifi: { sub: 50, noise: 3000, tail: 0.9, scifi: true },
+  taiko: { sub: 65, noise: 1500, tail: 0.7 },
+  thunder: { sub: 32, noise: 600, tail: 2.2 },
 };
 
 function hit(c, t, s, w = 1, drv = 2) {
@@ -305,6 +329,10 @@ const CLOTH = {
   denim: { lo: 500, hi: 2600, crunch: 45, dec: 0.06, thump: 0.25 },
   leather: { lo: 300, hi: 1800, crunch: 15, dec: 0.07, creak: true },
   nylon: { lo: 1800, hi: 9000, crunch: 80, dec: 0.1 },
+  silk: { lo: 2500, hi: 9000, crunch: 5, dec: 0.12 },
+  canvas: { lo: 600, hi: 3500, crunch: 35, dec: 0.07, thump: 0.15 },
+  wool: { lo: 300, hi: 1500, crunch: 4, dec: 0.1 },
+  armour: { lo: 1500, hi: 6000, crunch: 20, dec: 0.06, jingle: true },
 };
 const center = (m) => Math.sqrt(m.lo * m.hi);
 
@@ -313,6 +341,7 @@ function grab(c, t, m, w = 1) {
   nz(c, t, { type: "bandpass", f, q: f / (m.hi - m.lo) + 0.3, peak: 1.6 * w, att: 0.012, dec: m.dec, dur: 0.45 });
   grains(c, t, m.crunch, c.vel, 0.45 * w, m.lo);
   if (m.thump) osc(c, t, { f: 110 * c.pitch, peak: m.thump * w, dec: 0.03 });
+  if (m.jingle) tinkle(c, t, 6, 0.12, [1800, 4200], 0.04, 0.6 * w);
   if (m.creak) {
     const bp = A.ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 900; bp.Q.value = 6; bp.connect(c.out);
     osc(c, t, { type: "sawtooth", f: 95 * c.pitch, fEnd: 125 * c.pitch, fTau: 0.06, peak: 0.35 * w, att: 0.02, dec: 0.12, dest: bp });
@@ -334,7 +363,32 @@ const MOVE = {
   heavy: { f: 600, q: 0.9 },
   blade: { f: 2200, q: 2, ring: true },
   body: { f: 900, q: 1.1, thud: true },
+  cape: { f: 450, q: 0.8 },
+  stick: { f: 2600, q: 3.5 },
 };
+
+/* -------------------------------------------------------------- jewellery */
+
+const JEWEL = {
+  keys: { f: [2400, 4200], n: 6, spread: 0.16, dec: 0.05 },
+  coins: { f: [3200, 6000], n: 5, spread: 0.22, dec: 0.09 },
+  chain: { f: [1800, 3400], n: 12, spread: 0.28, dec: 0.025 },
+  bracelet: { f: [2800, 5200], n: 4, spread: 0.1, dec: 0.14 },
+  beads: { f: [1100, 2200], n: 9, spread: 0.2, dec: 0.012 },
+  bells: { f: [1500, 2600], n: 3, spread: 0.14, dec: 0.5 },
+};
+
+/** Small metal objects hitting each other: each hit is three inharmonic partials plus a tiny click. */
+function tinkle(c, t, n, spread, fr, dec, w) {
+  n = Math.min(n, 24);
+  for (let i = 0; i < n; i++) {
+    const tt = t + Math.pow(Math.random(), 1.6) * spread;
+    const f = rand(fr[0], fr[1]) * c.pitch * Math.min(c.bright, 1.4);
+    const a = (w * rand(0.4, 1)) / Math.sqrt(n);
+    [1, 2.76, 5.4].forEach((m, j) => osc(c, tt, { f: f * m, peak: a / (j + 1.5), dec: dec / (1 + j * 0.6), dur: Math.max(0.2, dec * 8) }));
+    nz(c, tt, { type: "highpass", f: 5000, peak: a * 0.5, dec: 0.002, dur: 0.05 });
+  }
+}
 
 function thud(c, t, w = 1) {
   osc(c, t, { f: 95 * c.pitch, fEnd: 50 * c.pitch, fTau: 0.03, peak: 0.9 * w, dec: 0.08 });
@@ -352,7 +406,7 @@ function bladeRing(c, t) {
 export const LIB = {
   footsteps: {
     name: "Footsteps", verb: 0.15, texture: null,
-    presets: { concrete: "Concrete", wood: "Wood", gravel: "Gravel", grass: "Grass", snow: "Snow" },
+    presets: { concrete: "Concrete", wood: "Wood", gravel: "Gravel", grass: "Grass", snow: "Snow", dirt: "Dirt", puddle: "Puddle", metal: "Metal", heels: "Heels", boots: "Boots", sneakers: "Sneakers" },
     labels: { a: "Step", b: "Scuff", c: "Squeak", fist: "Stomp", swipe: "Shuffle", texture: null },
     play(k, c, p) {
       const s = FOOT[p], t = c.t;
@@ -369,7 +423,7 @@ export const LIB = {
   },
   cinematic: {
     name: "Cinematic", verb: 0.6, texture: "drone",
-    presets: { epic: "Epic Hit", deep: "Deep Boom", metal: "Metal Impact", scifi: "Sci-Fi" },
+    presets: { epic: "Epic", deep: "Deep", metal: "Metal", scifi: "Sci-Fi", taiko: "Taiko", thunder: "Thunder" },
     labels: { a: "Hit", b: "Braam", c: "Riser", fist: "Boom", swipe: "Whoosh", texture: "Drone" },
     play(k, c, p) {
       const s = CIN[p], t = c.t;
@@ -388,7 +442,7 @@ export const LIB = {
   },
   guns: {
     name: "Guns", verb: 0.35, texture: null,
-    presets: { pistol: "Pistol", rifle: "Rifle", shotgun: "Shotgun", silenced: "Silenced" },
+    presets: { pistol: "Pistol", rifle: "Rifle", shotgun: "Shotgun", silenced: "Silenced", revolver: "Revolver", heavy: "Machine gun" },
     labels: { a: "Shot", b: "Reload", c: "Shell drop", fist: "Burst", swipe: "Whiz-by", texture: null },
     play(k, c, p) {
       const g = GUN[p], t = c.t;
@@ -401,7 +455,7 @@ export const LIB = {
   },
   cloth: {
     name: "Cloth", verb: 0.1, texture: "rustle",
-    presets: { cotton: "Cotton", denim: "Denim", leather: "Leather", nylon: "Nylon Jacket" },
+    presets: { cotton: "Cotton", denim: "Denim", leather: "Leather", nylon: "Nylon", silk: "Silk", canvas: "Canvas", wool: "Wool", armour: "Armour" },
     labels: { a: "Grab", b: "Snap", c: "Zip", fist: "Body fall", swipe: "Swish", texture: "Rustle" },
     play(k, c, p) {
       const m = CLOTH[p], t = c.t;
@@ -420,7 +474,7 @@ export const LIB = {
   },
   movement: {
     name: "Movement", verb: 0.2, texture: "air",
-    presets: { swish: "Swish", heavy: "Heavy Air", blade: "Blade", body: "Body" },
+    presets: { swish: "Swish", heavy: "Heavy air", blade: "Blade", body: "Body", cape: "Cape", stick: "Stick" },
     labels: { a: "Whoosh", b: "Long whoosh", c: "Punch", fist: "Body hit", swipe: "Swing", texture: "Air" },
     play(k, c, p) {
       const m = MOVE[p], t = c.t;
@@ -437,6 +491,22 @@ export const LIB = {
     },
   },
 };
+
+export const JEWELLERY = {
+  name: "Jewellery", verb: 0.15, texture: null,
+  presets: { keys: "Keys", coins: "Coins", chain: "Chain", bracelet: "Bracelet", beads: "Beads", bells: "Bells" },
+  labels: { a: "Jingle", b: "Shake", c: "Drop", fist: "Handful", swipe: null, texture: null },
+  play(k, c, p) {
+    const j = JEWEL[p], t = c.t;
+    if (k === "a") tinkle(c, t, j.n, j.spread, j.f, j.dec, 1);
+    else if (k === "b") { tinkle(c, t, j.n, j.spread * 0.7, j.f, j.dec, 0.9); tinkle(c, t + 0.14, j.n, j.spread * 0.7, j.f, j.dec, 0.8); }
+    else if (k === "c") {
+      [0, 0.11, 0.19, 0.245, 0.28].forEach((d, i) => tinkle(c, t + d, Math.max(1, Math.round(j.n / 3)), 0.02, j.f, j.dec, Math.pow(0.65, i)));
+      osc(c, t, { f: 180 * c.pitch, peak: 0.2, dec: 0.02 });
+    } else if (k === "fist") tinkle(c, t, Math.round(j.n * 2.2), j.spread * 2, j.f, j.dec * 1.2, 1.3);
+  },
+};
+LIB.jewellery = JEWELLERY;
 
 /* --------------------------------------------- texture (continuous layer) */
 

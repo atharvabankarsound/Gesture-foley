@@ -1,17 +1,18 @@
-// Sample engine: holds your recorded sounds for each folder (category) and finger slot.
+// Sample engine: your recorded sounds, stored per folder, texture and finger.
+//   e.g. footsteps / gravel / index  ->  every "Step on gravel" sample
 //
-// - Several samples per slot play in random order, never the same one twice in a row
-//   (round-robin), so repeated steps don't sound like a machine gun.
+// - Several samples in one cell play in random order, never the same one twice in a row.
 // - Velocity sets loudness and brightness (softer touch = quieter and darker).
 // - Variation adds small random pitch and level changes.
-// - Samples you add are saved in this browser (IndexedDB), so they are still there next time.
+// - gainMul lets the blend pad mix several textures at once.
+// - Samples you add are saved in this browser (IndexedDB).
 // - A bundled pack can live in docs/samples/ with a manifest.json; it loads for everyone.
 
 import { A } from "./sounds.js";
 
-const bank = {};          // "cat/slot" -> [{id, name, buffer, saved}]
+const bank = {};          // "cat/texture/slot" -> [{id, name, buffer, saved}]
 const lastPick = {};
-const key = (cat, slot) => `${cat}/${slot}`;
+const key = (cat, tex, slot) => `${cat}/${tex}/${slot}`;
 export const AUDIO_EXT = /\.(wav|wave|mp3|aif|aiff|flac|ogg|oga|m4a|aac|caf|webm)$/i;
 const MAX_BYTES = 30 * 1024 * 1024;
 
@@ -52,16 +53,11 @@ const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${
 
 /* ------------------------------------------------------------ loading */
 
-async function decode(arrayBuffer) {
-  // decodeAudioData detaches the buffer it is given, so pass a copy and keep the original for saving.
-  return A.ctx.decodeAudioData(arrayBuffer.slice(0));
-}
+// decodeAudioData detaches the buffer it is given, so decode a copy and keep the original for saving.
+const decode = (arrayBuffer) => A.ctx.decodeAudioData(arrayBuffer.slice(0));
 
-/**
- * Add audio files to one slot.
- * @returns {added, failed: [{name, reason}]}
- */
-export async function addFiles(cat, slot, files) {
+/** Add audio files to one cell. Returns {added, failed: [{name, reason}]}. */
+export async function addFiles(cat, tex, slot, files) {
   const failed = [];
   let added = 0;
   for (const f of files) {
@@ -71,8 +67,8 @@ export async function addFiles(cat, slot, files) {
       const data = await f.arrayBuffer();
       const buffer = await decode(data);
       const id = newId();
-      (bank[key(cat, slot)] ||= []).push({ id, name: f.name, buffer, saved: true });
-      await dbRun("readwrite", (s) => s.put({ id, cat, slot, name: f.name, data }));
+      (bank[key(cat, tex, slot)] ||= []).push({ id, name: f.name, buffer, saved: true });
+      await dbRun("readwrite", (s) => s.put({ id, cat, texture: tex, slot, name: f.name, data }));
       added++;
     } catch {
       failed.push({ name: f.name, reason: "this browser can't read that format" });
@@ -81,21 +77,26 @@ export async function addFiles(cat, slot, files) {
   return { added, failed };
 }
 
-/** Reload samples saved in this browser. */
-export async function restore() {
+/**
+ * Reload samples saved in this browser.
+ * @param fallbackTexture (cat) => texture, for samples saved before textures existed
+ */
+export async function restore(fallbackTexture) {
   const all = (await dbRun("readonly", (s) => s.getAll())) || [];
   let n = 0;
   for (const rec of all) {
+    const tex = rec.texture || fallbackTexture(rec.cat);
+    if (!tex) continue;
     try {
       const buffer = await decode(rec.data);
-      (bank[key(rec.cat, rec.slot)] ||= []).push({ id: rec.id, name: rec.name, buffer, saved: true });
+      (bank[key(rec.cat, tex, rec.slot)] ||= []).push({ id: rec.id, name: rec.name, buffer, saved: true });
       n++;
     } catch { /* skip files that no longer decode */ }
   }
   return n;
 }
 
-/** Load the bundled pack from samples/manifest.json, if the repo has one. */
+/** Load the bundled pack from samples/manifest.json: {cat: {texture: {slot: [paths]}}}. */
 export async function loadBundled(base = "samples/") {
   let manifest;
   try {
@@ -107,18 +108,20 @@ export async function loadBundled(base = "samples/") {
   }
   let n = 0;
   const jobs = [];
-  for (const [cat, slots] of Object.entries(manifest)) {
-    for (const [slot, paths] of Object.entries(slots)) {
-      for (const p of paths) {
-        jobs.push((async () => {
-          try {
-            const res = await fetch(base + p);
-            if (!res.ok) return;
-            const buffer = await decode(await res.arrayBuffer());
-            (bank[key(cat, slot)] ||= []).push({ id: "bundled:" + p, name: p.split("/").pop(), buffer, saved: false });
-            n++;
-          } catch { /* skip */ }
-        })());
+  for (const [cat, texes] of Object.entries(manifest)) {
+    for (const [tex, slots] of Object.entries(texes)) {
+      for (const [slot, paths] of Object.entries(slots)) {
+        for (const p of paths) {
+          jobs.push((async () => {
+            try {
+              const res = await fetch(base + p);
+              if (!res.ok) return;
+              const buffer = await decode(await res.arrayBuffer());
+              (bank[key(cat, tex, slot)] ||= []).push({ id: "bundled:" + p, name: p.split("/").pop(), buffer, saved: false });
+              n++;
+            } catch { /* skip */ }
+          })());
+        }
       }
     }
   }
@@ -128,13 +131,19 @@ export async function loadBundled(base = "samples/") {
 
 /* ---------------------------------------------------------- managing */
 
-export function list(cat, slot) { return bank[key(cat, slot)] || []; }
-export function count(cat, slot) { return list(cat, slot).length; }
+export const list = (cat, tex, slot) => bank[key(cat, tex, slot)] || [];
+export const count = (cat, tex, slot) => list(cat, tex, slot).length;
 
-export async function clearSlot(cat, slot) {
-  const items = list(cat, slot);
-  for (const it of items) if (it.saved) await dbRun("readwrite", (s) => s.delete(it.id));
-  delete bank[key(cat, slot)];
+/** Total samples in a folder. */
+export function countFolder(cat) {
+  let n = 0;
+  for (const [k, v] of Object.entries(bank)) if (k.startsWith(cat + "/")) n += v.length;
+  return n;
+}
+
+export async function clearCell(cat, tex, slot) {
+  for (const it of list(cat, tex, slot)) if (it.saved) await dbRun("readwrite", (s) => s.delete(it.id));
+  delete bank[key(cat, tex, slot)];
 }
 
 export async function clearAll() {
@@ -145,16 +154,17 @@ export async function clearAll() {
 /* ----------------------------------------------------------- playback */
 
 /**
- * Play one sample from a slot.
+ * Play one sample from a cell.
  * @param vel        0..1 loudness/brightness
  * @param pan        -1..1
  * @param variation  0..1 random pitch (up to ±1.5 semitones) and level (up to ±1.5 dB)
- * @returns the sample's name, or null if the slot is empty
+ * @param gainMul    layer level from the blend pad
+ * @returns the sample's name, or null if the cell is empty
  */
-export function play(cat, slot, vel, pan, variation) {
-  const items = list(cat, slot);
+export function play(cat, tex, slot, vel, pan, variation, gainMul = 1) {
+  const items = list(cat, tex, slot);
   if (!items.length || !A.ctx) return null;
-  const k = key(cat, slot);
+  const k = key(cat, tex, slot);
   let i = Math.floor(Math.random() * items.length);
   if (items.length > 1 && i === lastPick[k]) i = (i + 1) % items.length;
   lastPick[k] = i;
@@ -171,7 +181,7 @@ export function play(cat, slot, vel, pan, variation) {
   tone.Q.value = 0.5;
 
   const g = ctx.createGain();
-  g.gain.value = (0.16 + 0.84 * Math.pow(vel, 1.3)) * Math.pow(10, (r() * variation * 1.5) / 20);
+  g.gain.value = gainMul * (0.16 + 0.84 * Math.pow(vel, 1.3)) * Math.pow(10, (r() * variation * 1.5) / 20);
   const p = ctx.createStereoPanner();
   p.pan.value = pan;
 

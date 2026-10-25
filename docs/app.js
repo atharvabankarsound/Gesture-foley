@@ -1,6 +1,7 @@
 import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 import { Hand, SLOTS, TIP } from "./gestures.js";
 import { A, LIB, createAudio, initAudio, makeCtx, setSpace, setVolume } from "./sounds.js";
+import { cornerWeights, layers } from "./blend.js";
 import * as Samples from "./samples.js";
 
 const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
@@ -8,17 +9,24 @@ const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
 const $ = (id) => document.getElementById(id);
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const COL = { left: css("--left"), right: css("--right"), accent: css("--accent") };
+const CORNER_COL = ["#0a84ff", "#30d1c4", "#ff9f0a", "#bf5af2"];      // top-left, top-right, bottom-left, bottom-right
+const CORNER_POS = ["Top left", "Top right", "Bottom left", "Bottom right"];
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 
 /* -------------------------------------------------------------- folders */
 
 const CATS = {
-  footsteps: { name: "Footsteps", slots: { index: "Step", middle: "Scuff", ring: "Squeak", pinky: "Stomp" }, alias: ["footsteps", "footstep", "steps", "feet"] },
-  cinematic: { name: "Cinematic", slots: { index: "Hit", middle: "Braam", ring: "Riser", pinky: "Boom" }, alias: ["cinematic", "cinematics", "trailer", "impacts"] },
-  guns: { name: "Guns", slots: { index: "Shot", middle: "Reload", ring: "Shell drop", pinky: "Burst" }, alias: ["guns", "gun", "weapons", "firearms"] },
-  cloth: { name: "Cloth", slots: { index: "Grab", middle: "Snap", ring: "Zip", pinky: "Body fall" }, alias: ["cloth", "clothes", "clothing", "fabric", "rustle"] },
-  movement: { name: "Movement", slots: { index: "Whoosh", middle: "Long whoosh", ring: "Punch", pinky: "Body hit" }, alias: ["movement", "movements", "whooshes", "whoosh"] },
+  footsteps: { slots: { index: "Step", middle: "Scuff", ring: "Squeak", pinky: "Stomp" }, corners: ["gravel", "puddle", "sneakers", "wood"], alias: ["footsteps", "footstep", "steps", "feet"] },
+  cloth: { slots: { index: "Grab", middle: "Snap", ring: "Zip", pinky: "Body fall" }, corners: ["cotton", "leather", "denim", "nylon"], alias: ["cloth", "clothes", "clothing", "fabric", "rustle"] },
+  movement: { slots: { index: "Whoosh", middle: "Long whoosh", ring: "Punch", pinky: "Body hit" }, corners: ["swish", "heavy", "blade", "body"], alias: ["movement", "movements", "whooshes"] },
+  guns: { slots: { index: "Shot", middle: "Reload", ring: "Shell drop", pinky: "Burst" }, corners: ["pistol", "rifle", "shotgun", "silenced"], alias: ["guns", "gun", "weapons", "firearms"] },
+  jewellery: { slots: { index: "Jingle", middle: "Shake", ring: "Drop", pinky: "Handful" }, corners: ["keys", "coins", "chain", "bells"], alias: ["jewellery", "jewelry", "jewels", "trinkets"] },
+  cinematic: { slots: { index: "Hit", middle: "Braam", ring: "Riser", pinky: "Boom" }, corners: ["epic", "deep", "metal", "scifi"], alias: ["cinematic", "cinematics", "trailer", "impacts"] },
 };
 const CAT_KEYS = Object.keys(CATS);
+const catName = (ck) => LIB[ck].name;
+const texName = (ck, tx) => LIB[ck].presets[tx] || tx;
+const textures = (ck) => Object.keys(LIB[ck].presets);
 const FINGER = { index: "Index", middle: "Middle", ring: "Ring", pinky: "Pinky" };
 const SLOT_ALIAS = { index: ["index", "1", "first"], middle: ["middle", "2", "second"], ring: ["ring", "3", "third"], pinky: ["pinky", "little", "4", "fourth"] };
 const SYNTH_KEY = { index: "a", middle: "b", ring: "c", pinky: "fist" };   // placeholder sounds in sounds.js
@@ -33,35 +41,176 @@ const state = {
   cat: "footsteps",
   touch: 0.22,
   volume: 0.8,
+  steer: false,
   knobs: Object.fromEntries(KNOBS.map((m) => [m.k, m.def])),
+  pads: Object.fromEntries(CAT_KEYS.map((k) => [k, { corners: [...CATS[k].corners], x: 0.5, y: 0.5 }])),
 };
+const pad = () => state.pads[state.cat];
 
-/* --------------------------------------------------------------- render */
+// Remember each folder's corners and point between visits (this browser only).
+try {
+  const saved = JSON.parse(localStorage.getItem("gf-pads") || "{}");
+  for (const [k, v] of Object.entries(saved)) {
+    if (!state.pads[k] || !Array.isArray(v.corners) || v.corners.length !== 4) continue;
+    if (!v.corners.every((t) => textures(k).includes(t))) continue;
+    state.pads[k] = { corners: v.corners, x: clamp(+v.x || 0.5), y: clamp(+v.y || 0.5) };
+  }
+} catch { /* storage unavailable */ }
+let saveTimer = 0;
+function savePads() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { try { localStorage.setItem("gf-pads", JSON.stringify(state.pads)); } catch { /* ignore */ } }, 300);
+}
+
+/* -------------------------------------------------------------- folders */
 
 const FOLDER_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2h7.4A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.5"/></svg>';
 
 function renderFolders() {
   const box = $("cats");
   box.innerHTML = "";
-  CAT_KEYS.forEach((ck, i) => {
-    const n = SLOTS.reduce((a, s) => a + Samples.count(ck, s), 0);
+  for (const ck of CAT_KEYS) {
+    const n = Samples.countFolder(ck);
     const b = document.createElement("button");
     b.type = "button";
     b.className = "cat-btn";
     b.setAttribute("aria-pressed", String(ck === state.cat));
-    b.innerHTML = `${FOLDER_SVG}<span>${CATS[ck].name}</span><span class="count${n ? " has" : ""}">${n ? n + (n === 1 ? " sample" : " samples") : "synth"}</span>`;
+    b.innerHTML = `${FOLDER_SVG}<span>${catName(ck)}</span><span class="count${n ? " has" : ""}">${n ? n : "synth"}</span>`;
     b.addEventListener("click", () => selectCategory(ck));
     box.appendChild(b);
-  });
+  }
 }
 
 function selectCategory(ck) {
   state.cat = ck;
-  $("stageCat").textContent = CATS[ck].name;
+  $("stageCat").textContent = catName(ck);
+  $("libCat").textContent = catName(ck);
   setSpace(state.knobs.reverb, state.cat);
   renderFolders();
+  renderCorners();
+  renderPad();
   renderSlots();
+  renderLibrary();
 }
+
+/* ------------------------------------------------------------ blend pad */
+
+function renderCorners() {
+  const p = pad();
+  const make = (i) => {
+    const el = document.createElement("div");
+    el.className = "corner";
+    const tx = p.corners[i];
+    el.innerHTML = `<button class="arrow" type="button" aria-label="${CORNER_POS[i]}: previous texture">◀</button>
+      <span class="cname"><i style="background:${CORNER_COL[i]}"></i><span></span></span>
+      <button class="arrow" type="button" aria-label="${CORNER_POS[i]}: next texture">▶</button>`;
+    el.querySelector(".cname span").textContent = texName(state.cat, tx);
+    el.title = `${CORNER_POS[i]}: ${texName(state.cat, tx)}`;
+    const [prev, next] = el.querySelectorAll(".arrow");
+    prev.addEventListener("click", () => cycleCorner(i, -1));
+    next.addEventListener("click", () => cycleCorner(i, 1));
+    return el;
+  };
+  const top = $("cornersTop"), bottom = $("cornersBottom");
+  top.innerHTML = ""; bottom.innerHTML = "";
+  top.append(make(0), make(1));
+  bottom.append(make(2), make(3));
+}
+
+function cycleCorner(i, dir) {
+  const p = pad(), all = textures(state.cat);
+  let idx = all.indexOf(p.corners[i]);
+  // Skip textures already used in another corner when there are enough to choose from.
+  for (let n = 0; n < all.length; n++) {
+    idx = (idx + dir + all.length) % all.length;
+    if (!p.corners.some((t, j) => j !== i && t === all[idx]) || all.length <= 4) break;
+  }
+  p.corners[i] = all[idx];
+  savePads();
+  renderCorners(); renderPad(); renderSlots(); renderLibrary();
+}
+
+function setPoint(x, y) {
+  const p = pad();
+  p.x = clamp(x); p.y = clamp(y);
+  savePads();
+  renderPad();
+}
+
+function blendSummary() {
+  const p = pad();
+  return layers(p.corners, p.x, p.y).map((l) => `${texName(state.cat, l.tex)} ${Math.round(l.w * 100)}%`).join(" · ");
+}
+
+const padCanvas = $("padCanvas"), pctx = padCanvas.getContext("2d");
+function renderPad() {
+  const p = pad();
+  $("puck").style.left = p.x * 100 + "%";
+  $("puck").style.top = p.y * 100 + "%";
+  const [w, h] = fit(padCanvas, pctx);
+  pctx.clearRect(0, 0, w, h);
+  const wts = cornerWeights(p.x, p.y);
+  const pts = [[0, 0], [w, 0], [0, h], [w, h]];
+  // corner glows, brighter the more that texture is in the mix
+  pts.forEach(([cx, cy], i) => {
+    const g = pctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.95);
+    const a = Math.round((0.08 + 0.5 * wts[i]) * 255).toString(16).padStart(2, "0");
+    g.addColorStop(0, CORNER_COL[i] + a);
+    g.addColorStop(1, CORNER_COL[i] + "00");
+    pctx.fillStyle = g;
+    pctx.fillRect(0, 0, w, h);
+  });
+  // guide arcs centred on each corner
+  pctx.strokeStyle = "rgba(255,255,255,0.09)";
+  pctx.lineWidth = 1;
+  for (const [cx, cy] of pts) { pctx.beginPath(); pctx.arc(cx, cy, w * 0.82, 0, Math.PI * 2); pctx.stroke(); }
+  pctx.beginPath(); pctx.moveTo(w / 2, 0); pctx.lineTo(w / 2, h); pctx.moveTo(0, h / 2); pctx.lineTo(w, h / 2); pctx.stroke();
+  // lines from the point to each corner, thicker for bigger shares
+  pts.forEach(([cx, cy], i) => {
+    if (wts[i] < 0.04) return;
+    pctx.strokeStyle = CORNER_COL[i];
+    pctx.globalAlpha = 0.25 + 0.6 * wts[i];
+    pctx.lineWidth = 1 + 3 * wts[i];
+    pctx.beginPath(); pctx.moveTo(p.x * w, p.y * h); pctx.lineTo(cx, cy); pctx.stroke();
+  });
+  pctx.globalAlpha = 1;
+  // percentages on the corner labels
+  document.querySelectorAll(".corner").forEach((el, i) => {
+    let pct = el.querySelector(".pct");
+    if (!pct) { pct = document.createElement("span"); pct.className = "pct"; el.querySelector(".cname").after(pct); }
+    pct.textContent = Math.round(wts[i] * 100) + "%";
+  });
+  $("pad").setAttribute("aria-valuetext", blendSummary());
+}
+
+(() => {
+  const el = $("pad");
+  const fromEvent = (e) => {
+    const r = el.getBoundingClientRect();
+    setPoint((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  };
+  el.addEventListener("pointerdown", (e) => { el.setPointerCapture(e.pointerId); $("padHint").hidden = true; fromEvent(e); });
+  el.addEventListener("pointermove", (e) => { if (el.hasPointerCapture(e.pointerId)) fromEvent(e); });
+  el.addEventListener("dblclick", () => setPoint(0.5, 0.5));
+  el.addEventListener("keydown", (e) => {
+    const p = pad(), st = e.shiftKey ? 0.1 : 0.04;
+    const moves = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] };
+    if (moves[e.key]) { e.preventDefault(); e.stopPropagation(); setPoint(p.x + moves[e.key][0], p.y + moves[e.key][1]); }
+  });
+})();
+$("centreBtn").addEventListener("click", () => setPoint(0.5, 0.5));
+$("diceBtn").addEventListener("click", () => {
+  const all = [...textures(state.cat)];
+  for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
+  const p = pad();
+  p.corners = all.slice(0, 4);
+  p.x = 0.2 + Math.random() * 0.6; p.y = 0.2 + Math.random() * 0.6;
+  savePads();
+  renderCorners(); renderPad(); renderSlots(); renderLibrary();
+});
+$("steer").addEventListener("change", (e) => { state.steer = e.target.checked; });
+
+/* ----------------------------------------------------------- finger slots */
 
 const slotEls = {};
 function buildSlots() {
@@ -74,48 +223,30 @@ function buildSlots() {
       <span class="finger"><b>${i + 1}</b>Thumb + ${FINGER[slot]}</span>
       <span class="snd"></span>
       <span class="src"></span>
-      <span class="acts">
-        <button type="button" class="mini primary" data-act="add">Add samples</button>
-        <button type="button" class="mini" data-act="test">Play</button>
-        <button type="button" class="mini" data-act="clear">Clear</button>
-      </span>
-      <input type="file" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg,.m4a" multiple hidden>`;
-    const input = el.querySelector("input");
-    el.querySelector('[data-act="add"]').addEventListener("click", () => input.click());
-    el.querySelector('[data-act="test"]').addEventListener("click", async () => { await initAudio(state.volume); trigger(slot, "center", 0.8); });
-    el.querySelector('[data-act="clear"]').addEventListener("click", async () => {
-      await Samples.clearSlot(state.cat, slot);
-      note(`Cleared ${CATS[state.cat].name} · ${CATS[state.cat].slots[slot]}.`);
-      renderFolders(); renderSlots();
-    });
-    input.addEventListener("change", async () => { await addToSlot(slot, [...input.files]); input.value = ""; });
-    el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("drag"); });
-    el.addEventListener("dragleave", () => el.classList.remove("drag"));
-    el.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      el.classList.remove("drag");
-      await addToSlot(slot, [...e.dataTransfer.files]);
-    });
+      <span class="acts"><button type="button" class="mini">Play</button></span>`;
+    el.querySelector(".mini").addEventListener("click", async () => { await initAudio(state.volume); trigger(slot, "center", 0.8); });
     slotEls[slot] = el;
     box.appendChild(el);
   });
 }
 
 function renderSlots() {
+  const p = pad();
   for (const slot of SLOTS) {
-    const el = slotEls[slot], items = Samples.list(state.cat, slot);
+    const el = slotEls[slot];
     el.querySelector(".snd").textContent = CATS[state.cat].slots[slot];
+    const withSamples = [...new Set(p.corners)].filter((tx) => Samples.count(state.cat, tx, slot));
     const src = el.querySelector(".src");
-    if (items.length) {
-      src.className = "src";
-      const names = items.slice(0, 2).map((s) => s.name).join(", ") + (items.length > 2 ? "…" : "");
-      src.innerHTML = `<span class="n">${items.length} sample${items.length > 1 ? "s" : ""}</span> · `;
-      src.append(names);
+    src.innerHTML = "";
+    if (withSamples.length) {
+      const b = document.createElement("b");
+      b.textContent = `Samples: ${withSamples.map((tx) => texName(state.cat, tx)).join(", ")}`;
+      src.append(b);
+      const rest = [...new Set(p.corners)].length - withSamples.length;
+      if (rest) src.append(` · synth for ${rest} more`);
     } else {
-      src.className = "src synth";
-      src.textContent = "Synth placeholder. Drop audio files here.";
+      src.textContent = "Synth placeholder";
     }
-    el.querySelector('[data-act="clear"]').hidden = !items.length;
   }
 }
 
@@ -130,36 +261,109 @@ function lightSlot(slot, hand) {
   el._t = setTimeout(() => { lamp.classList.remove(cls); el.classList.remove("hit"); }, 160);
 }
 
+/* ---------------------------------------------------------- sound library */
+
 const note = (msg) => { $("sampleNote").textContent = msg; };
+let pendingCell = null;
 
-/* -------------------------------------------------------------- samples */
+function renderLibrary() {
+  const table = $("libTable"), p = pad();
+  table.innerHTML = "";
+  const thead = table.createTHead().insertRow();
+  const th0 = document.createElement("th");
+  th0.textContent = "Texture";
+  thead.appendChild(th0);
+  for (const slot of SLOTS) {
+    const th = document.createElement("th");
+    th.innerHTML = `Thumb + ${FINGER[slot]}<span></span>`;
+    th.querySelector("span").textContent = CATS[state.cat].slots[slot];
+    thead.appendChild(th);
+  }
+  const tbody = table.createTBody();
+  for (const tx of textures(state.cat)) {
+    const row = tbody.insertRow();
+    const th = document.createElement("th");
+    th.scope = "row";
+    const dot = document.createElement("i");
+    const ci = p.corners.indexOf(tx);
+    if (ci >= 0) { dot.style.background = CORNER_COL[ci]; dot.style.borderColor = CORNER_COL[ci]; dot.title = `${CORNER_POS[ci]} corner`; }
+    th.append(dot, texName(state.cat, tx));
+    row.appendChild(th);
+    for (const slot of SLOTS) {
+      const td = row.insertCell();
+      const items = Samples.list(state.cat, tx, slot);
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "add" + (items.length ? " has" : "");
+      add.textContent = items.length ? `${items.length} sample${items.length > 1 ? "s" : ""}` : "+ Add";
+      add.title = items.length ? items.map((s) => s.name).join("\n") : `Add ${CATS[state.cat].slots[slot]} samples for ${texName(state.cat, tx)}`;
+      add.setAttribute("aria-label", `${texName(state.cat, tx)}, ${CATS[state.cat].slots[slot]}: ${items.length ? items.length + " samples, click to add more" : "add samples"}`);
+      add.addEventListener("click", () => { pendingCell = { tx, slot }; $("cellInput").click(); });
+      cell.appendChild(add);
+      if (items.length) {
+        const x = document.createElement("button");
+        x.type = "button"; x.className = "x"; x.textContent = "×";
+        x.setAttribute("aria-label", `Remove ${texName(state.cat, tx)} ${CATS[state.cat].slots[slot]} samples`);
+        x.addEventListener("click", async () => {
+          await Samples.clearCell(state.cat, tx, slot);
+          note(`Removed ${texName(state.cat, tx)} · ${CATS[state.cat].slots[slot]} samples.`);
+          refreshCounts();
+        });
+        cell.appendChild(x);
+      }
+      cell.addEventListener("dragover", (e) => { e.preventDefault(); cell.classList.add("drag"); });
+      cell.addEventListener("dragleave", () => cell.classList.remove("drag"));
+      cell.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        cell.classList.remove("drag");
+        await addToCell(tx, slot, [...e.dataTransfer.files]);
+      });
+      td.appendChild(cell);
+    }
+  }
+}
 
-async function addToSlot(slot, files) {
+function refreshCounts() { renderFolders(); renderSlots(); renderLibrary(); }
+
+$("cellInput").addEventListener("change", async (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  if (pendingCell) await addToCell(pendingCell.tx, pendingCell.slot, files);
+  pendingCell = null;
+});
+
+async function addToCell(tx, slot, files) {
   if (!files.length) return;
   createAudio(state.volume);
   note(`Loading ${files.length} file${files.length > 1 ? "s" : ""}…`);
-  const { added, failed } = await Samples.addFiles(state.cat, slot, files);
-  let msg = `Added ${added} sample${added === 1 ? "" : "s"} to ${CATS[state.cat].name} · ${CATS[state.cat].slots[slot]}.`;
+  const { added, failed } = await Samples.addFiles(state.cat, tx, slot, files);
+  let msg = `Added ${added} sample${added === 1 ? "" : "s"} to ${texName(state.cat, tx)} · ${CATS[state.cat].slots[slot]}.`;
   if (failed.length) msg += ` Skipped ${failed.length}: ${failed.slice(0, 2).map((f) => `${f.name} (${f.reason})`).join(", ")}${failed.length > 2 ? "…" : ""}`;
   note(msg);
-  renderFolders();
-  renderSlots();
+  refreshCounts();
 }
 
 const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-/** Work out the folder and finger slot from a path such as "My Pack/Footsteps/Index/step_01.wav". */
+/** Work out folder, texture and finger from a path like "My Pack/Footsteps/Gravel/Step/step_01.wav". */
 export function route(path) {
   const segs = path.split("/").slice(0, -1).map(norm);
-  let cat = null, slot = null, catSeg = -1;
+  let cat = null, catSeg = -1;
   segs.forEach((s, i) => {
     for (const ck of CAT_KEYS) if (!cat && CATS[ck].alias.map(norm).includes(s)) { cat = ck; catSeg = i; }
   });
   if (!cat) return null;
-  // Score each slot name against each folder name: exact match beats a contained word,
-  // and longer names win (so "Long whoosh" isn't mistaken for "Whoosh").
-  let best = 0;
-  for (const s of segs.slice(catSeg + 1)) {   // only folders inside the category folder
+  let tex = null, texSeg = -1;
+  segs.forEach((s, i) => {
+    if (i <= catSeg || tex) return;
+    for (const tx of textures(cat)) if (!tex && (norm(tx) === s || norm(texName(cat, tx)) === s)) { tex = tx; texSeg = i; }
+  });
+  if (!tex) return null;
+  // Exact match beats a contained word, and longer names win ("Long whoosh" over "Whoosh").
+  let slot = null, best = 0;
+  for (const s of segs.slice(texSeg + 1)) {
     for (const sk of SLOTS) {
       for (const n of [...SLOT_ALIAS[sk], CATS[cat].slots[sk]].map(norm)) {
         let score = 0;
@@ -170,7 +374,7 @@ export function route(path) {
       }
     }
   }
-  return slot ? { cat, slot } : null;
+  return slot ? { cat, tex, slot } : null;
 }
 
 $("folderBtn").addEventListener("click", () => $("folderInput").click());
@@ -185,21 +389,20 @@ $("folderInput").addEventListener("change", async (e) => {
   for (const f of files) {
     const r = route(f.webkitRelativePath || f.name);
     if (!r) { unmatched++; continue; }
-    const k = r.cat + "/" + r.slot;
+    const k = `${r.cat}/${r.tex}/${r.slot}`;
     if (!groups.has(k)) groups.set(k, { ...r, files: [] });
     groups.get(k).files.push(f);
   }
   let added = 0, failed = 0;
   for (const g of groups.values()) {
-    const res = await Samples.addFiles(g.cat, g.slot, g.files);
+    const res = await Samples.addFiles(g.cat, g.tex, g.slot, g.files);
     added += res.added; failed += res.failed.length;
   }
-  let msg = `Added ${added} samples to ${groups.size} slot${groups.size === 1 ? "" : "s"}.`;
-  if (unmatched) msg += ` ${unmatched} files weren't in a matching folder (for example Footsteps/Index).`;
+  let msg = `Added ${added} samples to ${groups.size} cell${groups.size === 1 ? "" : "s"}.`;
+  if (unmatched) msg += ` ${unmatched} files weren't in a matching folder (for example Footsteps/Gravel/Step).`;
   if (failed) msg += ` ${failed} couldn't be read.`;
   note(msg);
-  renderFolders();
-  renderSlots();
+  refreshCounts();
 });
 
 let clearArmed = false;
@@ -215,11 +418,10 @@ $("clearAllBtn").addEventListener("click", async () => {
   btn.textContent = "Remove all my samples";
   await Samples.clearAll();
   note("Removed all samples.");
-  renderFolders();
-  renderSlots();
+  refreshCounts();
 });
 
-// Dropping a file outside a slot shouldn't open it in the browser tab.
+// Dropping a file outside a cell shouldn't open it in the browser tab.
 window.addEventListener("dragover", (e) => e.preventDefault());
 window.addEventListener("drop", (e) => e.preventDefault());
 
@@ -249,7 +451,7 @@ function buildKnobs() {
       <line class="ptr" x1="29" y1="29" stroke="#f5f5f7" stroke-width="2.5" stroke-linecap="round"/>
     </svg><span class="kv"></span><span class="kl">${m.label}</span>`;
     const set = (v) => {
-      v = Math.min(1, Math.max(0, v));
+      v = clamp(v);
       state.knobs[m.k] = v;
       const a = A0 + SWEEP * v;
       el.querySelector(".val").setAttribute("d", arc(29, 29, 24, A0, A0 + Math.max(SWEEP * v, 0.001)));
@@ -279,27 +481,30 @@ function buildKnobs() {
 /* -------------------------------------------------------------- trigger */
 
 const cueEvents = [];
-let count = 0;
 
 function trigger(slot, hand, vel) {
   if (!A.ctx) return;
   if (A.ctx.state !== "running") A.ctx.resume();
   const v = 1 - state.knobs.dynamics * (1 - vel);          // Dynamics 0 = every hit at full level
   const pan = hand === "left" ? -0.25 : hand === "right" ? 0.25 : 0;
-  let source = Samples.play(state.cat, slot, v, pan, state.knobs.variation);
-  if (!source) {
+  const p = pad();
+  let fromSamples = 0, fromSynth = 0;
+  // One layer per corner texture, each at its equal-power share of the blend.
+  for (const layer of layers(p.corners, p.x, p.y)) {
+    if (Samples.play(state.cat, layer.tex, slot, v, pan, state.knobs.variation, layer.gain)) { fromSamples++; continue; }
     const c = makeCtx(v, pan, 0.5, { intensity: 0.55, tone: 0.5, pitch: 0.5, variation: state.knobs.variation }, false);
-    LIB[state.cat].play(SYNTH_KEY[slot], c, Object.keys(LIB[state.cat].presets)[0]);
-    source = "synth placeholder";
+    c.out.gain.value *= layer.gain;
+    LIB[state.cat].play(SYNTH_KEY[slot], c, layer.tex);
+    fromSynth++;
   }
-  count++;
   cueEvents.push({ t: performance.now(), slot, hand, vel });
   lightSlot(slot, hand);
   const name = $("lastName");
-  name.textContent = `${CATS[state.cat].slots[slot]} · ${CATS[state.cat].name}`;
+  name.textContent = `${CATS[state.cat].slots[slot]} · ${blendSummary()}`;
   name.className = "big " + (hand === "center" ? "" : hand);
   const who = hand === "center" ? "Test" : hand === "left" ? "Left hand" : "Right hand";
-  $("lastMeta").textContent = `${who} · velocity ${Math.round(1 + vel * 126)}/127 · ${source}`;
+  const src = fromSamples && fromSynth ? `${fromSamples} sample + ${fromSynth} synth layers` : fromSamples ? `${fromSamples} sample layer${fromSamples > 1 ? "s" : ""}` : `${fromSynth} synth layer${fromSynth > 1 ? "s" : ""}`;
+  $("lastMeta").textContent = `${who} · velocity ${Math.round(1 + vel * 126)}/127 · ${src}`;
 }
 
 /* ------------------------------------------------------------- controls */
@@ -308,9 +513,10 @@ $("touch").addEventListener("input", (e) => { state.touch = +e.target.value; $("
 $("volume").addEventListener("input", (e) => { state.volume = +e.target.value; setVolume(state.volume); $("volOut").textContent = Math.round(state.volume * 100) + "%"; });
 window.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" && e.target.type !== "range") return;
-  if (e.target.classList?.contains("knob")) return;
+  if (e.target.classList?.contains("knob") || e.target.id === "pad") return;
   if (e.key >= "1" && e.key <= String(CAT_KEYS.length)) selectCategory(CAT_KEYS[+e.key - 1]);
 });
+window.addEventListener("resize", () => renderPad());
 
 /* --------------------------------------------------------- hand tracker */
 
@@ -415,6 +621,18 @@ function processHands(res, t, aspect) {
   });
   for (const k of [...hands.keys()]) if (!seen.has(k)) hands.delete(k);
 
+  // Steering: the palm of the left hand (or the only hand) moves the blend point.
+  if (state.steer) {
+    const hand = hands.get("left") || hands.get("right");
+    if (hand?.ready) {
+      const P = hand.pts;
+      const px = (P[0].x + P[5].x + P[9].x + P[17].x) / 4 / aspect, py = (P[0].y + P[5].y + P[9].y + P[17].y) / 4;
+      const tx = clamp(((1 - px) - 0.2) / 0.6), ty = clamp((py - 0.15) / 0.6);   // middle 60% of the frame covers the pad
+      const p = pad();
+      setPoint(p.x + 0.35 * (tx - p.x), p.y + 0.35 * (ty - p.y));
+    }
+  }
+
   for (let i = flashes.length - 1; i >= 0; i--) {
     const f = flashes[i], age = t - f.t;
     if (age > 0.3) { flashes.splice(i, 1); continue; }
@@ -444,7 +662,7 @@ function drawHand(lms, hand, side, w, h, aspect) {
   const release = state.touch + 0.25;
   for (const slot of SLOTS) {
     const s = hand.s[slot], tip = hand.pts[TIP[slot]];
-    const closeness = Math.max(0, Math.min(1, (release + 0.4 - s.r) / 0.4));
+    const closeness = clamp((release + 0.4 - s.r) / 0.4);
     if (closeness > 0) {
       octx.strokeStyle = col;
       octx.globalAlpha = 0.2 + 0.8 * closeness;
@@ -464,7 +682,7 @@ function drawHand(lms, hand, side, w, h, aspect) {
 
 function drawCue(now) {
   const [w, h] = fit(cue, cctx);
-  const span = 8000, padL = 62, padR = 12, top = 8, bottom = 22;
+  const span = 8000, padL = 70, padR = 12, top = 8, bottom = 22;
   const laneH = (h - top - bottom) / SLOTS.length;
   const xAt = (t) => padL + (1 - (now - t) / span) * (w - padL - padR);
   cctx.clearRect(0, 0, w, h);
@@ -504,11 +722,10 @@ buildSlots();
 buildKnobs();
 selectCategory(state.cat);
 createAudio(state.volume);           // suspended until the first click; lets samples decode now
-Promise.all([Samples.restore(), Samples.loadBundled()]).then(([mine, bundled]) => {
+Promise.all([Samples.restore((ck) => state.pads[ck]?.corners[0]), Samples.loadBundled()]).then(([mine, bundled]) => {
   if (mine || bundled) {
     note(`${mine ? `${mine} of your samples restored` : ""}${mine && bundled ? ", " : ""}${bundled ? `${bundled} bundled samples loaded` : ""}.`);
-    renderFolders();
-    renderSlots();
+    refreshCounts();
   }
 });
 (function idle(now) { if ($("gate").hidden) return; drawCue(now); requestAnimationFrame(idle); })(performance.now());
