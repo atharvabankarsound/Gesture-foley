@@ -10,30 +10,42 @@ No install needed: allow camera access and touch your thumb to a fingertip.
 
 Touch your thumb to one fingertip, then open your hand again. One touch plays one sound.
 
-| Touch | Footsteps | Cloth | Movement | Guns | Jewellery | Cinematic |
-|---|---|---|---|---|---|---|
-| Thumb + index | Step | Grab | Whoosh | Shot | Jingle | Hit |
-| Thumb + middle | Scuff | Snap | Long whoosh | Reload | Shake | Braam |
-| Thumb + ring | Squeak | Zip | Punch | Shell drop | Drop | Riser |
-| Thumb + pinky | Stomp | Body fall | Body hit | Burst | Handful | Boom |
+| Folder | Thumb + index | Thumb + middle | Thumb + ring | Thumb + pinky | Textures (sub-categories) |
+|---|---|---|---|---|---|
+| Footsteps | Step | Scuff | Squeak | Stomp | 11 textures, 27 sub-categories (e.g. Wood › Floorboard, Deck, Stairs, Creaky) |
+| Cloth | Grab | Snap | Zip | Body fall | 8 textures, 17 (e.g. Leather › Jacket, Belt, Gloves) |
+| Movement | Whoosh | Long whoosh | Punch | Body hit | 6 textures, 12 (e.g. Stick › Staff, Whip) |
+| Impacts & body | Punch | Slap | Kick | Body fall | Flesh, Wood, Metal, Glass, Ground: 14 |
+| Props & objects | Pick up | Put down | Open | Close | Door, Drawer, Paper, Glassware, Plastic, Tools: 14 |
+| Guns | Shot | Reload | Shell drop | Burst | 6 weapons, indoor/outdoor and more: 12 |
+| Jewellery | Jingle | Shake | Drop | Handful | Keys, Coins, Chain, Bracelet, Beads, Bells: 12 |
+| Water & elements | Small | Medium | Movement | Big | Water, Fire, Wind, Rain, Mud: 13 |
+| Creatures | Step | Run | Scratch | Wings / land | Horse, Dog, Big creature, Bird: 10 |
+| Cinematic | Hit | Braam | Riser | Boom | 6 textures, 12 |
 
-**Blend pad.** Every folder has an XY pad with a texture in each corner. Pick the corner textures
-with the arrows, then drag the point: each hit mixes the four textures by how close the point is
-to each corner (equal-power, so loudness stays even). Turn on *Steer the blend with your hand*
-to move the point with your palm while you perform.
+143 sub-categories in total.
 
-| Folder | Textures |
-|---|---|
-| Footsteps | Concrete, Wood, Gravel, Grass, Snow, Dirt, Puddle, Metal, Heels, Boots, Sneakers |
-| Cloth | Cotton, Denim, Leather, Nylon, Silk, Canvas, Wool, Armour |
-| Movement | Swish, Heavy air, Blade, Body, Cape, Stick |
-| Guns | Pistol, Rifle, Shotgun, Silenced, Revolver, Machine gun |
-| Jewellery | Keys, Coins, Chain, Bracelet, Beads, Bells |
-| Cinematic | Epic, Deep, Metal, Sci-Fi, Taiko, Thunder |
+**Main pad.** Every folder has an XY pad with a sub-category in each corner. Pick each corner from
+the menu or step through with the arrows, then drag the point: each hit mixes the four corners by
+how close the point is (equal-power, so loudness stays even). *Steer the main pad with your hand*
+moves the point with your palm while you perform.
+
+**Layer pad.** A second pad that plays with every hit, from any folder: clothing under footsteps,
+keys and chains under horses, whooshes under cinematic hits. *Plays* chooses which of the layer
+folder's sounds it adds (the same finger, or always one sound).
+
+**Size.** Small to Large changes the character's weight: pitch (±4 semitones), low end and brightness,
+for samples and synth alike.
+
+**Mixer.** Main and Layer channels with level, pan, mute and solo, plus Room (reverb) and Master.
+
+**Templates.** 22 factory templates (Forest walk, Rainy street, Office heels, Soldier, Bar fight,
+Car chase, Storm, Ranch, Trailer and more) set the pads, layer, size and layer level in one click.
+Save your own, and export or import them as a file to move them between computers.
 
 **Use your own samples.** The sound library grid has a cell for every texture and finger: drop audio
-files on a cell, or use *Load a sample folder* with folders laid out like `Footsteps/Gravel/Step/step_01.wav`.
-Several samples in one cell play in random order, never the same one twice in a row. Samples are saved in
+files on a cell, or use *Load a sample folder* on a whole kit folder.
+Cells are per sub-category and finger, laid out like `Footsteps/Wood/Stairs/Step/`. Several samples in one cell play in random order, never the same one twice in a row. Samples are saved in
 your browser. Empty cells use a synth placeholder.
 
 **Why it's precise:**
@@ -46,7 +58,7 @@ How fast your fingers close sets the velocity (louder and brighter). *Dynamics* 
 *Variation* adds small random pitch and level changes, and *Reverb* adds space.
 
 Code: `docs/gestures.js` (gesture detection), `docs/blend.js` (blend pad maths), `docs/samples.js` (sample playback),
-`docs/sounds.js` (synth placeholders), `docs/app.js` (interface). Bundled samples for everyone can go in
+`docs/sounds.js` (sound catalogue and synth placeholders), `docs/templates.js` (factory templates), `docs/app.js` (interface). Bundled samples for everyone can go in
 `docs/samples/` (see the README there).
 
 Listen to the built-in surfaces: [`media/surfaces_demo.wav`](media/surfaces_demo.wav)

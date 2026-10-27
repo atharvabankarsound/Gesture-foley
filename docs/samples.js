@@ -1,5 +1,5 @@
-// Sample engine: your recorded sounds, stored per folder, texture and finger.
-//   e.g. footsteps / gravel / index  ->  every "Step on gravel" sample
+// Sample engine: your recorded sounds, stored per folder, sub-category and finger.
+//   e.g. footsteps / wood.stairs / index  ->  every "Step on wooden stairs" sample
 //
 // - Several samples in one cell play in random order, never the same one twice in a row.
 // - Velocity sets loudness and brightness (softer touch = quieter and darker).
@@ -8,7 +8,7 @@
 // - Samples you add are saved in this browser (IndexedDB).
 // - A bundled pack can live in docs/samples/ with a manifest.json; it loads for everyone.
 
-import { A } from "./sounds.js";
+import { A, sizePitch, sizeShelf } from "./sounds.js";
 
 const bank = {};          // "cat/texture/slot" -> [{id, name, buffer, saved}]
 const lastPick = {};
@@ -79,13 +79,14 @@ export async function addFiles(cat, tex, slot, files) {
 
 /**
  * Reload samples saved in this browser.
- * @param fallbackTexture (cat) => texture, for samples saved before textures existed
+ * @param normalise (cat, texture) => current sub-category key or null.
+ *        Maps samples saved by older versions (no texture, or a texture without a sub-category).
  */
-export async function restore(fallbackTexture) {
+export async function restore(normalise) {
   const all = (await dbRun("readonly", (s) => s.getAll())) || [];
   let n = 0;
   for (const rec of all) {
-    const tex = rec.texture || fallbackTexture(rec.cat);
+    const tex = normalise(rec.cat, rec.texture);
     if (!tex) continue;
     try {
       const buffer = await decode(rec.data);
@@ -96,7 +97,7 @@ export async function restore(fallbackTexture) {
   return n;
 }
 
-/** Load the bundled pack from samples/manifest.json: {cat: {texture: {slot: [paths]}}}. */
+/** Load the bundled pack from samples/manifest.json: {cat: {"texture.variant": {slot: [paths]}}}. */
 export async function loadBundled(base = "samples/") {
   let manifest;
   try {
@@ -155,13 +156,16 @@ export async function clearAll() {
 
 /**
  * Play one sample from a cell.
- * @param vel        0..1 loudness/brightness
- * @param pan        -1..1
- * @param variation  0..1 random pitch (up to ±1.5 semitones) and level (up to ±1.5 dB)
- * @param gainMul    layer level from the blend pad
+ * @param o.vel        0..1 loudness/brightness
+ * @param o.pan        -1..1
+ * @param o.variation  0..1 random pitch (up to ±1.5 semitones) and level (up to ±1.5 dB)
+ * @param o.gain       layer level from the blend pad
+ * @param o.size       0 small .. 1 large (pitch and low end)
+ * @param o.dest       channel to play into
  * @returns the sample's name, or null if the cell is empty
  */
-export function play(cat, tex, slot, vel, pan, variation, gainMul = 1) {
+export function play(cat, tex, slot, o) {
+  const { vel, pan = 0, variation = 0, gain: gainMul = 1, size = 0.5, dest } = o;
   const items = list(cat, tex, slot);
   if (!items.length || !A.ctx) return null;
   const k = key(cat, tex, slot);
@@ -173,7 +177,7 @@ export function play(cat, tex, slot, vel, pan, variation, gainMul = 1) {
   const r = () => Math.random() * 2 - 1;
   const src = ctx.createBufferSource();
   src.buffer = items[i].buffer;
-  src.playbackRate.value = Math.pow(2, (r() * variation * 1.5) / 12);
+  src.playbackRate.value = sizePitch(size) * Math.pow(2, (r() * variation * 1.5) / 12);
 
   const tone = ctx.createBiquadFilter();       // softer touches sound darker, like a lighter footfall
   tone.type = "lowpass";
@@ -185,7 +189,8 @@ export function play(cat, tex, slot, vel, pan, variation, gainMul = 1) {
   const p = ctx.createStereoPanner();
   p.pan.value = pan;
 
-  src.connect(tone).connect(g).connect(p).connect(A.bus);
+  const shelf = sizeShelf(size);
+  src.connect(tone).connect(shelf).connect(g).connect(p).connect(dest || A.bus);
   src.onended = () => p.disconnect();
   src.start(t);
   return items[i].name;
