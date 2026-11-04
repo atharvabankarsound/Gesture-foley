@@ -1,3 +1,4 @@
+// Gesture Foley · Copyright (c) 2026 Atharva Bankar. All rights reserved. See LICENSE.
 // Sample engine: your recorded sounds, stored per folder, sub-category and finger.
 //   e.g. footsteps / wood.stairs / index  ->  every "Step on wooden stairs" sample
 //

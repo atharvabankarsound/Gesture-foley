@@ -1,3 +1,4 @@
+// Gesture Foley · Copyright (c) 2026 Atharva Bankar. All rights reserved. See LICENSE.
 // Factory templates: ready-made setups for each folder.
 // A template sets the main pad, the layer pad, the size and (optionally) mixer levels.
 // Texture keys are "texture.variant" from sounds.js.

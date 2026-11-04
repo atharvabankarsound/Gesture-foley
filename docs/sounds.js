@@ -1,3 +1,4 @@
+// Gesture Foley · Copyright (c) 2026 Atharva Bankar. All rights reserved. See LICENSE.
 // Sound engine and catalogue.
 //
 // FOLDERS -> textures -> variants (sub-categories), e.g. footsteps / wood / stairs.

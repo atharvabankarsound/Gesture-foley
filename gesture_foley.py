@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Gesture Foley · Copyright (c) 2026 Atharva Bankar. All rights reserved. See LICENSE.
 """
 Gesture Foley - Python / MIDI version
 =====================================

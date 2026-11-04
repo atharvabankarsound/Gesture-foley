@@ -34,3 +34,6 @@ Finger keys: `index`, `middle`, `ring`, `pinky`.
 
 Only add sounds you recorded yourself or that are licensed for redistribution (for example CC0).
 Trim each file to the sound's start, and keep it short: 48 kHz WAV or MP3, under about 1 MB.
+
+---
+© 2026 Atharva Bankar. All rights reserved.

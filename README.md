@@ -182,3 +182,11 @@ python gesture_foley.py --midi-port "loopMIDI Port"   # Windows (virtual ports a
 3. ~~Finger-touch gestures, sound library and glass UI in the browser~~
 4. JUCE plugin (VST3/AU) with a sample-based engine; this script becomes the companion app
 5. Recorded sample library and a trained gesture classifier
+
+## Copyright
+
+© 2026 Atharva Bankar. All rights reserved.
+
+This project is proprietary. The code is public so it can be viewed and the demo tried,
+but it may not be copied, modified, redistributed or reused without written permission.
+See [LICENSE](LICENSE). Third-party components (MediaPipe, Python packages) keep their own licences.

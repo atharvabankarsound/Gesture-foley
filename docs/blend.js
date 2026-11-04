@@ -1,3 +1,4 @@
+// Gesture Foley · Copyright (c) 2026 Atharva Bankar. All rights reserved. See LICENSE.
 // XY blend pad maths.
 //
 // Corners are ordered [top-left, top-right, bottom-left, bottom-right].

@@ -1,3 +1,4 @@
+// Gesture Foley · Copyright (c) 2026 Atharva Bankar. All rights reserved. See LICENSE.
 // Gesture engine: thumb-to-fingertip touches only.
 //
 //   index   thumb tip touches index tip

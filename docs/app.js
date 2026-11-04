@@ -1,3 +1,4 @@
+// Gesture Foley · Copyright (c) 2026 Atharva Bankar. All rights reserved. See LICENSE.
 import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 import { Hand, SLOTS, TIP } from "./gestures.js";
 import { A, FOLDERS, FOLDER_KEYS, textureList, hasTexture, textureLabel, render, createAudio, initAudio, makeCtx,

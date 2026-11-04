@@ -1,0 +1,20 @@
+Copyright (c) 2026 Atharva Bankar. All rights reserved.
+
+Gesture Foley, including its source code, website, user interface, text, graphics,
+sound design and documentation, is the proprietary work of Atharva Bankar.
+
+This repository is publicly visible so that the project can be viewed and the online
+demo can be tried. No licence is granted to copy, modify, distribute, sublicense, sell,
+or create derivative works from any part of it, in whole or in part, without the
+prior written permission of the copyright holder.
+
+You may view the source code on GitHub and use the official online demo at
+https://atharvabankarsound.github.io/Gesture-foley/ for personal evaluation.
+
+Third-party components keep their own licences and are not covered by this notice:
+  - MediaPipe Tasks Vision and the hand landmark model (Google), Apache License 2.0,
+    loaded from their official CDN and download locations.
+  - Python packages listed in requirements.txt, under their respective licences.
+
+For permissions or licensing enquiries, contact Atharva Bankar via
+https://github.com/atharvabankarsound.
