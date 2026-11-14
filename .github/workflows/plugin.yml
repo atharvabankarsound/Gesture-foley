@@ -1,0 +1,54 @@
+# Builds the Gesture Foley plugin and runs its tests on every push.
+name: Plugin
+
+on:
+  push:
+    paths: ["plugin/**", "docs/sounds.js", ".github/workflows/plugin.yml"]
+  pull_request:
+    paths: ["plugin/**", "docs/sounds.js", ".github/workflows/plugin.yml"]
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Taxonomy matches the web demo
+        run: node plugin/tools/export_taxonomy.mjs && git diff --exit-code plugin/Resources/taxonomy.json
+      - name: Configure
+        run: cmake -S plugin -B build -G Xcode
+      - name: Build
+        run: cmake --build build --config Release -- -quiet
+      - name: Test
+        run: build/GestureFoleyTests_artefacts/Release/GestureFoleyTests
+      - name: Package
+        run: |
+          mkdir -p out
+          cp -R "build/GestureFoley_artefacts/Release/AU/Gesture Foley.component" out/
+          cp -R "build/GestureFoley_artefacts/Release/VST3/Gesture Foley.vst3" out/
+          cp -R "build/GestureFoley_artefacts/Release/Standalone/Gesture Foley.app" out/
+          cd out && zip -qry "../Gesture-Foley-mac-unsigned.zip" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gesture-Foley-mac-unsigned
+          path: Gesture-Foley-mac-unsigned.zip
+          retention-days: 30
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libjack-jackd2-dev ladspa-sdk libfreetype-dev \
+            libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev \
+            libxrandr-dev libxrender-dev libxi-dev libgl1-mesa-dev
+      - name: Configure
+        run: cmake -S plugin -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGF_BUILD_HOST_CHECK=ON
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: build/GestureFoleyTests_artefacts/Release/GestureFoleyTests
+      - name: Host check
+        run: build/GestureFoleyHostCheck_artefacts/Release/GestureFoleyHostCheck "build/GestureFoley_artefacts/Release/VST3/Gesture Foley.vst3"

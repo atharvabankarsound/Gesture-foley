@@ -6,6 +6,13 @@ Hand tracking (MediaPipe) → gesture detection → real-time sound **and MIDI i
 **Try it in your browser:** https://atharvabankarsound.github.io/Gesture-foley/  
 No install needed: allow camera access and touch your thumb to a fingertip.
 
+### Plugin (AU / VST3, in progress)
+
+The DAW plugin lives in [`plugin/`](plugin/README.md): a JUCE sound engine with the same folders, finger touches
+and XY blend pad as the browser version, driven by MIDI from the hand tracker. It loads your own sample folder.
+
+![Gesture Foley plugin](media/plugin-v0.1.png)
+
 ### Browser version
 
 Touch your thumb to one fingertip, then open your hand again. One touch plays one sound.
@@ -180,7 +187,7 @@ python gesture_foley.py --midi-port "loopMIDI Port"   # Windows (virtual ports a
 1. ~~Stage 1: camera → gestures → synthesized steps~~
 2. ~~Stage 2: MIDI out → editable performance in Reaper~~
 3. ~~Finger-touch gestures, sound library and glass UI in the browser~~
-4. JUCE plugin (VST3/AU) with a sample-based engine; this script becomes the companion app
+4. JUCE plugin (VST3/AU) with a sample-based engine (v0.1 done: engine, blend pad, your samples, MIDI map); next: layer pad, templates, tracker on the new note map, then hand tracking inside the app
 5. Recorded sample library and a trained gesture classifier
 
 ## Copyright

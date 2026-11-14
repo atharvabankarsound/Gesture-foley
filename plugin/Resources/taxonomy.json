@@ -1,0 +1,1194 @@
+{
+ "version": 1,
+ "slots": [
+  "index",
+  "middle",
+  "ring",
+  "pinky"
+ ],
+ "folders": [
+  {
+   "key": "footsteps",
+   "name": "Footsteps",
+   "slots": {
+    "index": "Step",
+    "middle": "Scuff",
+    "ring": "Squeak",
+    "pinky": "Stomp"
+   },
+   "aliases": [
+    "footsteps",
+    "footstep",
+    "steps",
+    "feet"
+   ],
+   "corners": [
+    "gravel.fine",
+    "puddle.shallow",
+    "sneakers.hard",
+    "wood.floorboard"
+   ],
+   "textures": [
+    {
+     "key": "concrete",
+     "name": "Concrete",
+     "variants": [
+      {
+       "key": "pavement",
+       "name": "Pavement"
+      },
+      {
+       "key": "garage",
+       "name": "Garage"
+      },
+      {
+       "key": "tiles",
+       "name": "Tiles"
+      }
+     ]
+    },
+    {
+     "key": "wood",
+     "name": "Wood",
+     "variants": [
+      {
+       "key": "floorboard",
+       "name": "Floorboard"
+      },
+      {
+       "key": "deck",
+       "name": "Deck"
+      },
+      {
+       "key": "stairs",
+       "name": "Stairs"
+      },
+      {
+       "key": "creaky",
+       "name": "Creaky"
+      }
+     ]
+    },
+    {
+     "key": "gravel",
+     "name": "Gravel",
+     "variants": [
+      {
+       "key": "fine",
+       "name": "Fine"
+      },
+      {
+       "key": "coarse",
+       "name": "Coarse"
+      }
+     ]
+    },
+    {
+     "key": "grass",
+     "name": "Grass",
+     "variants": [
+      {
+       "key": "short",
+       "name": "Short"
+      },
+      {
+       "key": "long",
+       "name": "Long"
+      },
+      {
+       "key": "wet",
+       "name": "Wet"
+      }
+     ]
+    },
+    {
+     "key": "snow",
+     "name": "Snow",
+     "variants": [
+      {
+       "key": "fresh",
+       "name": "Fresh"
+      },
+      {
+       "key": "packed",
+       "name": "Packed"
+      }
+     ]
+    },
+    {
+     "key": "dirt",
+     "name": "Dirt",
+     "variants": [
+      {
+       "key": "dry",
+       "name": "Dry"
+      },
+      {
+       "key": "mud",
+       "name": "Mud"
+      }
+     ]
+    },
+    {
+     "key": "puddle",
+     "name": "Puddle",
+     "variants": [
+      {
+       "key": "shallow",
+       "name": "Shallow"
+      },
+      {
+       "key": "deep",
+       "name": "Deep"
+      }
+     ]
+    },
+    {
+     "key": "metal",
+     "name": "Metal",
+     "variants": [
+      {
+       "key": "grate",
+       "name": "Grate"
+      },
+      {
+       "key": "ladder",
+       "name": "Ladder"
+      },
+      {
+       "key": "catwalk",
+       "name": "Catwalk"
+      }
+     ]
+    },
+    {
+     "key": "heels",
+     "name": "Heels",
+     "variants": [
+      {
+       "key": "marble",
+       "name": "On marble"
+      },
+      {
+       "key": "wood",
+       "name": "On wood"
+      }
+     ]
+    },
+    {
+     "key": "boots",
+     "name": "Boots",
+     "variants": [
+      {
+       "key": "leather",
+       "name": "Leather"
+      },
+      {
+       "key": "combat",
+       "name": "Combat"
+      }
+     ]
+    },
+    {
+     "key": "sneakers",
+     "name": "Sneakers",
+     "variants": [
+      {
+       "key": "hard",
+       "name": "Hard floor"
+      },
+      {
+       "key": "gym",
+       "name": "Gym"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "cloth",
+   "name": "Cloth",
+   "slots": {
+    "index": "Grab",
+    "middle": "Snap",
+    "ring": "Zip",
+    "pinky": "Body fall"
+   },
+   "aliases": [
+    "cloth",
+    "clothes",
+    "clothing",
+    "fabric"
+   ],
+   "corners": [
+    "cotton.tshirt",
+    "leather.jacket",
+    "nylon.windbreaker",
+    "wool.coat"
+   ],
+   "textures": [
+    {
+     "key": "cotton",
+     "name": "Cotton",
+     "variants": [
+      {
+       "key": "tshirt",
+       "name": "T-shirt"
+      },
+      {
+       "key": "shirt",
+       "name": "Shirt"
+      }
+     ]
+    },
+    {
+     "key": "denim",
+     "name": "Denim",
+     "variants": [
+      {
+       "key": "jeans",
+       "name": "Jeans"
+      },
+      {
+       "key": "jacket",
+       "name": "Jacket"
+      }
+     ]
+    },
+    {
+     "key": "leather",
+     "name": "Leather",
+     "variants": [
+      {
+       "key": "jacket",
+       "name": "Jacket"
+      },
+      {
+       "key": "belt",
+       "name": "Belt"
+      },
+      {
+       "key": "gloves",
+       "name": "Gloves"
+      }
+     ]
+    },
+    {
+     "key": "nylon",
+     "name": "Nylon",
+     "variants": [
+      {
+       "key": "windbreaker",
+       "name": "Windbreaker"
+      },
+      {
+       "key": "backpack",
+       "name": "Backpack"
+      }
+     ]
+    },
+    {
+     "key": "silk",
+     "name": "Silk",
+     "variants": [
+      {
+       "key": "dress",
+       "name": "Dress"
+      },
+      {
+       "key": "scarf",
+       "name": "Scarf"
+      }
+     ]
+    },
+    {
+     "key": "canvas",
+     "name": "Canvas",
+     "variants": [
+      {
+       "key": "bag",
+       "name": "Bag"
+      },
+      {
+       "key": "tarp",
+       "name": "Tarp"
+      }
+     ]
+    },
+    {
+     "key": "wool",
+     "name": "Wool",
+     "variants": [
+      {
+       "key": "jumper",
+       "name": "Jumper"
+      },
+      {
+       "key": "coat",
+       "name": "Coat"
+      }
+     ]
+    },
+    {
+     "key": "armour",
+     "name": "Armour",
+     "variants": [
+      {
+       "key": "chainmail",
+       "name": "Chainmail"
+      },
+      {
+       "key": "plate",
+       "name": "Plate"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "movement",
+   "name": "Movement",
+   "slots": {
+    "index": "Whoosh",
+    "middle": "Long whoosh",
+    "ring": "Punch",
+    "pinky": "Body hit"
+   },
+   "aliases": [
+    "movement",
+    "movements",
+    "whooshes"
+   ],
+   "corners": [
+    "swish.hand",
+    "heavy.swing",
+    "blade.sword",
+    "body.spin"
+   ],
+   "textures": [
+    {
+     "key": "swish",
+     "name": "Swish",
+     "variants": [
+      {
+       "key": "hand",
+       "name": "Hand"
+      },
+      {
+       "key": "arm",
+       "name": "Arm"
+      }
+     ]
+    },
+    {
+     "key": "heavy",
+     "name": "Heavy air",
+     "variants": [
+      {
+       "key": "swing",
+       "name": "Big swing"
+      },
+      {
+       "key": "sweep",
+       "name": "Sweep"
+      }
+     ]
+    },
+    {
+     "key": "blade",
+     "name": "Blade",
+     "variants": [
+      {
+       "key": "sword",
+       "name": "Sword"
+      },
+      {
+       "key": "knife",
+       "name": "Knife"
+      }
+     ]
+    },
+    {
+     "key": "body",
+     "name": "Body",
+     "variants": [
+      {
+       "key": "spin",
+       "name": "Spin"
+      },
+      {
+       "key": "dodge",
+       "name": "Dodge"
+      }
+     ]
+    },
+    {
+     "key": "cape",
+     "name": "Cape",
+     "variants": [
+      {
+       "key": "cloak",
+       "name": "Cloak"
+      },
+      {
+       "key": "flag",
+       "name": "Flag"
+      }
+     ]
+    },
+    {
+     "key": "stick",
+     "name": "Stick",
+     "variants": [
+      {
+       "key": "staff",
+       "name": "Staff"
+      },
+      {
+       "key": "whip",
+       "name": "Whip"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "impacts",
+   "name": "Impacts & body",
+   "slots": {
+    "index": "Punch",
+    "middle": "Slap",
+    "ring": "Kick",
+    "pinky": "Body fall"
+   },
+   "aliases": [
+    "impacts",
+    "impact",
+    "fights",
+    "punches"
+   ],
+   "corners": [
+    "flesh.face",
+    "flesh.body",
+    "wood.plank",
+    "ground.dirt"
+   ],
+   "textures": [
+    {
+     "key": "flesh",
+     "name": "Flesh",
+     "variants": [
+      {
+       "key": "face",
+       "name": "Face"
+      },
+      {
+       "key": "body",
+       "name": "Body"
+      },
+      {
+       "key": "gut",
+       "name": "Gut"
+      }
+     ]
+    },
+    {
+     "key": "wood",
+     "name": "Wood",
+     "variants": [
+      {
+       "key": "plank",
+       "name": "Plank"
+      },
+      {
+       "key": "door",
+       "name": "Door"
+      },
+      {
+       "key": "crate",
+       "name": "Crate"
+      }
+     ]
+    },
+    {
+     "key": "metal",
+     "name": "Metal",
+     "variants": [
+      {
+       "key": "sheet",
+       "name": "Sheet"
+      },
+      {
+       "key": "pipe",
+       "name": "Pipe"
+      },
+      {
+       "key": "car",
+       "name": "Car body"
+      }
+     ]
+    },
+    {
+     "key": "glass",
+     "name": "Glass",
+     "variants": [
+      {
+       "key": "window",
+       "name": "Window"
+      },
+      {
+       "key": "bottle",
+       "name": "Bottle"
+      }
+     ]
+    },
+    {
+     "key": "ground",
+     "name": "Ground",
+     "variants": [
+      {
+       "key": "dirt",
+       "name": "Dirt"
+      },
+      {
+       "key": "concrete",
+       "name": "Concrete"
+      },
+      {
+       "key": "mat",
+       "name": "Gym mat"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "props",
+   "name": "Props & objects",
+   "slots": {
+    "index": "Pick up",
+    "middle": "Put down",
+    "ring": "Open",
+    "pinky": "Close"
+   },
+   "aliases": [
+    "props",
+    "objects"
+   ],
+   "corners": [
+    "door.wood",
+    "drawer.wood",
+    "paper.sheet",
+    "glassware.bottle"
+   ],
+   "textures": [
+    {
+     "key": "door",
+     "name": "Door",
+     "variants": [
+      {
+       "key": "wood",
+       "name": "Wood"
+      },
+      {
+       "key": "metal",
+       "name": "Metal"
+      },
+      {
+       "key": "car",
+       "name": "Car"
+      }
+     ]
+    },
+    {
+     "key": "drawer",
+     "name": "Drawer",
+     "variants": [
+      {
+       "key": "wood",
+       "name": "Wood"
+      },
+      {
+       "key": "metal",
+       "name": "Metal"
+      }
+     ]
+    },
+    {
+     "key": "paper",
+     "name": "Paper",
+     "variants": [
+      {
+       "key": "sheet",
+       "name": "Sheet"
+      },
+      {
+       "key": "book",
+       "name": "Book"
+      },
+      {
+       "key": "envelope",
+       "name": "Envelope"
+      }
+     ]
+    },
+    {
+     "key": "glassware",
+     "name": "Glassware",
+     "variants": [
+      {
+       "key": "bottle",
+       "name": "Bottle"
+      },
+      {
+       "key": "cup",
+       "name": "Cup"
+      }
+     ]
+    },
+    {
+     "key": "plastic",
+     "name": "Plastic",
+     "variants": [
+      {
+       "key": "bag",
+       "name": "Bag"
+      },
+      {
+       "key": "box",
+       "name": "Box"
+      }
+     ]
+    },
+    {
+     "key": "tools",
+     "name": "Tools",
+     "variants": [
+      {
+       "key": "wrench",
+       "name": "Wrench"
+      },
+      {
+       "key": "screwdriver",
+       "name": "Screwdriver"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "guns",
+   "name": "Guns",
+   "slots": {
+    "index": "Shot",
+    "middle": "Reload",
+    "ring": "Shell drop",
+    "pinky": "Burst"
+   },
+   "aliases": [
+    "guns",
+    "gun",
+    "weapons",
+    "firearms"
+   ],
+   "corners": [
+    "pistol.indoor",
+    "rifle.outdoor",
+    "shotgun.pump",
+    "silenced.pistol"
+   ],
+   "textures": [
+    {
+     "key": "pistol",
+     "name": "Pistol",
+     "variants": [
+      {
+       "key": "indoor",
+       "name": "Indoor"
+      },
+      {
+       "key": "outdoor",
+       "name": "Outdoor"
+      }
+     ]
+    },
+    {
+     "key": "rifle",
+     "name": "Rifle",
+     "variants": [
+      {
+       "key": "indoor",
+       "name": "Indoor"
+      },
+      {
+       "key": "outdoor",
+       "name": "Outdoor"
+      }
+     ]
+    },
+    {
+     "key": "shotgun",
+     "name": "Shotgun",
+     "variants": [
+      {
+       "key": "pump",
+       "name": "Pump"
+      },
+      {
+       "key": "double",
+       "name": "Double barrel"
+      }
+     ]
+    },
+    {
+     "key": "silenced",
+     "name": "Silenced",
+     "variants": [
+      {
+       "key": "pistol",
+       "name": "Pistol"
+      },
+      {
+       "key": "rifle",
+       "name": "Rifle"
+      }
+     ]
+    },
+    {
+     "key": "revolver",
+     "name": "Revolver",
+     "variants": [
+      {
+       "key": "indoor",
+       "name": "Indoor"
+      },
+      {
+       "key": "outdoor",
+       "name": "Outdoor"
+      }
+     ]
+    },
+    {
+     "key": "heavy",
+     "name": "Machine gun",
+     "variants": [
+      {
+       "key": "light",
+       "name": "Light"
+      },
+      {
+       "key": "heavy",
+       "name": "Heavy"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "jewellery",
+   "name": "Jewellery",
+   "slots": {
+    "index": "Jingle",
+    "middle": "Shake",
+    "ring": "Drop",
+    "pinky": "Handful"
+   },
+   "aliases": [
+    "jewellery",
+    "jewelry",
+    "jewels",
+    "trinkets"
+   ],
+   "corners": [
+    "keys.small",
+    "coins.few",
+    "chain.fine",
+    "bells.small"
+   ],
+   "textures": [
+    {
+     "key": "keys",
+     "name": "Keys",
+     "variants": [
+      {
+       "key": "small",
+       "name": "Small ring"
+      },
+      {
+       "key": "big",
+       "name": "Big ring"
+      }
+     ]
+    },
+    {
+     "key": "coins",
+     "name": "Coins",
+     "variants": [
+      {
+       "key": "few",
+       "name": "A few"
+      },
+      {
+       "key": "pocket",
+       "name": "Pocketful"
+      }
+     ]
+    },
+    {
+     "key": "chain",
+     "name": "Chain",
+     "variants": [
+      {
+       "key": "fine",
+       "name": "Fine"
+      },
+      {
+       "key": "heavy",
+       "name": "Heavy"
+      }
+     ]
+    },
+    {
+     "key": "bracelet",
+     "name": "Bracelet",
+     "variants": [
+      {
+       "key": "metal",
+       "name": "Metal"
+      },
+      {
+       "key": "bangles",
+       "name": "Bangles"
+      }
+     ]
+    },
+    {
+     "key": "beads",
+     "name": "Beads",
+     "variants": [
+      {
+       "key": "wood",
+       "name": "Wood"
+      },
+      {
+       "key": "glass",
+       "name": "Glass"
+      }
+     ]
+    },
+    {
+     "key": "bells",
+     "name": "Bells",
+     "variants": [
+      {
+       "key": "small",
+       "name": "Small"
+      },
+      {
+       "key": "sleigh",
+       "name": "Sleigh"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "elements",
+   "name": "Water & elements",
+   "slots": {
+    "index": "Small",
+    "middle": "Medium",
+    "ring": "Movement",
+    "pinky": "Big"
+   },
+   "aliases": [
+    "elements",
+    "weather"
+   ],
+   "corners": [
+    "water.puddle",
+    "fire.torch",
+    "wind.gust",
+    "rain.light"
+   ],
+   "textures": [
+    {
+     "key": "water",
+     "name": "Water",
+     "variants": [
+      {
+       "key": "puddle",
+       "name": "Puddle"
+      },
+      {
+       "key": "pool",
+       "name": "Pool"
+      },
+      {
+       "key": "bath",
+       "name": "Bath"
+      },
+      {
+       "key": "sea",
+       "name": "Sea"
+      }
+     ]
+    },
+    {
+     "key": "fire",
+     "name": "Fire",
+     "variants": [
+      {
+       "key": "torch",
+       "name": "Torch"
+      },
+      {
+       "key": "campfire",
+       "name": "Campfire"
+      },
+      {
+       "key": "fireball",
+       "name": "Fireball"
+      }
+     ]
+    },
+    {
+     "key": "wind",
+     "name": "Wind",
+     "variants": [
+      {
+       "key": "gust",
+       "name": "Gust"
+      },
+      {
+       "key": "whistle",
+       "name": "Whistle"
+      }
+     ]
+    },
+    {
+     "key": "rain",
+     "name": "Rain",
+     "variants": [
+      {
+       "key": "light",
+       "name": "Light"
+      },
+      {
+       "key": "heavy",
+       "name": "Heavy"
+      }
+     ]
+    },
+    {
+     "key": "mud",
+     "name": "Mud",
+     "variants": [
+      {
+       "key": "squelch",
+       "name": "Squelch"
+      },
+      {
+       "key": "suck",
+       "name": "Suction"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "creatures",
+   "name": "Creatures",
+   "slots": {
+    "index": "Step",
+    "middle": "Run",
+    "ring": "Scratch",
+    "pinky": "Wings / land"
+   },
+   "aliases": [
+    "creatures",
+    "animals",
+    "creatureshorses"
+   ],
+   "corners": [
+    "horse.cobble",
+    "dog.wood",
+    "beast.stone",
+    "bird.small"
+   ],
+   "textures": [
+    {
+     "key": "horse",
+     "name": "Horse",
+     "variants": [
+      {
+       "key": "cobble",
+       "name": "Cobbles"
+      },
+      {
+       "key": "dirt",
+       "name": "Dirt"
+      },
+      {
+       "key": "bridge",
+       "name": "Wooden bridge"
+      }
+     ]
+    },
+    {
+     "key": "dog",
+     "name": "Dog",
+     "variants": [
+      {
+       "key": "tile",
+       "name": "Tile"
+      },
+      {
+       "key": "wood",
+       "name": "Wood"
+      },
+      {
+       "key": "grass",
+       "name": "Grass"
+      }
+     ]
+    },
+    {
+     "key": "beast",
+     "name": "Big creature",
+     "variants": [
+      {
+       "key": "stone",
+       "name": "Stone"
+      },
+      {
+       "key": "dirt",
+       "name": "Dirt"
+      }
+     ]
+    },
+    {
+     "key": "bird",
+     "name": "Bird",
+     "variants": [
+      {
+       "key": "small",
+       "name": "Small"
+      },
+      {
+       "key": "large",
+       "name": "Large"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "cinematic",
+   "name": "Cinematic",
+   "slots": {
+    "index": "Hit",
+    "middle": "Braam",
+    "ring": "Riser",
+    "pinky": "Boom"
+   },
+   "aliases": [
+    "cinematic",
+    "cinematics",
+    "trailer"
+   ],
+   "corners": [
+    "epic.hit",
+    "deep.sub",
+    "metal.clang",
+    "scifi.laser"
+   ],
+   "textures": [
+    {
+     "key": "epic",
+     "name": "Epic",
+     "variants": [
+      {
+       "key": "hit",
+       "name": "Hit"
+      },
+      {
+       "key": "slam",
+       "name": "Slam"
+      }
+     ]
+    },
+    {
+     "key": "deep",
+     "name": "Deep",
+     "variants": [
+      {
+       "key": "sub",
+       "name": "Sub"
+      },
+      {
+       "key": "boom",
+       "name": "Boom"
+      }
+     ]
+    },
+    {
+     "key": "metal",
+     "name": "Metal",
+     "variants": [
+      {
+       "key": "clang",
+       "name": "Clang"
+      },
+      {
+       "key": "resonant",
+       "name": "Resonant"
+      }
+     ]
+    },
+    {
+     "key": "scifi",
+     "name": "Sci-Fi",
+     "variants": [
+      {
+       "key": "laser",
+       "name": "Laser hit"
+      },
+      {
+       "key": "glitch",
+       "name": "Glitch"
+      }
+     ]
+    },
+    {
+     "key": "taiko",
+     "name": "Taiko",
+     "variants": [
+      {
+       "key": "single",
+       "name": "Single"
+      },
+      {
+       "key": "ensemble",
+       "name": "Ensemble"
+      }
+     ]
+    },
+    {
+     "key": "thunder",
+     "name": "Thunder",
+     "variants": [
+      {
+       "key": "crack",
+       "name": "Crack"
+      },
+      {
+       "key": "rumble",
+       "name": "Rumble"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
