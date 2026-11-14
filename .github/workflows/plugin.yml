@@ -3,12 +3,24 @@ name: Plugin
 
 on:
   push:
-    paths: ["plugin/**", "docs/sounds.js", ".github/workflows/plugin.yml"]
+    paths: ["plugin/**", "docs/sounds.js", "docs/gestures.js", "gesture_foley.py", "tests/**", ".github/workflows/plugin.yml"]
   pull_request:
-    paths: ["plugin/**", "docs/sounds.js", ".github/workflows/plugin.yml"]
+    paths: ["plugin/**", "docs/sounds.js", "docs/gestures.js", "gesture_foley.py", "tests/**", ".github/workflows/plugin.yml"]
   workflow_dispatch:
 
 jobs:
+  tracker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tracker matches the website's touch engine
+        run: |
+          pip install numpy scipy
+          python tests/test_tracker.py
+
   mac:
     runs-on: macos-latest
     steps:

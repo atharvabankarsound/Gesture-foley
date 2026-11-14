@@ -78,13 +78,11 @@ will block it the first time: run `xattr -dr com.apple.quarantine` on the plugin
 
 ## Using it with the tracker in Reaper
 
-1. Start the tracker: `python gesture_foley.py --midi` (it creates a virtual MIDI port called "Gesture Foley").
-2. In Reaper: Preferences > Audio > MIDI Devices, enable the "Gesture Foley" input.
-3. Insert a track with the Gesture Foley plugin, arm it, and set its input to MIDI > Gesture Foley.
-4. Perform. Record-arm the track to capture your takes as MIDI and audio.
-
-The Python tracker still sends the older gesture notes. Moving it to the four-touch engine and
-this note map is the next step.
+1. Start the tracker: `python gesture_foley.py` from the repo folder (it creates a virtual MIDI port called "Gesture Foley").
+2. In Reaper: Settings > Audio > MIDI Inputs, enable the "Gesture Foley" input.
+3. Insert a track with the Gesture Foley plugin, arm it, and set its input to MIDI > Gesture Foley > All channels.
+4. Perform. Keys 1–9 and 0 in the tracker window change the plugin's folder, `[` `]` change Size, and
+   `p` lets your hand move the blend pad. Record to capture your takes as MIDI.
 
 ## Code
 

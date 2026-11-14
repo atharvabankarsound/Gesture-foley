@@ -131,7 +131,8 @@ static void testEngineSynth()
             c.folder = f;
             e.setControls (c);
             e.trigger (s, 1);
-            allFolders &= rms (renderSeconds (e, 0.3)) > 0.003f;
+            const float level = rms (renderSeconds (e, 0.3));
+            allFolders &= std::isfinite (level) && level > 0.003f && level < 2.0f;
         }
     CHECK (allFolders, "every folder and finger makes a sound");
 

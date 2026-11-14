@@ -63,8 +63,9 @@ namespace gf
             const float vary = 1.0f + (rng.nextFloat() - 0.5f) * 0.15f;
             const float noiseHz = r.noiseHz * vary;
 
-            // state-variable band-pass for the noise
-            float low = 0, band = 0;
+            // band-pass for the noise: a zero-delay (TPT) state-variable filter, stable at any
+            // frequency (the simpler Chamberlin form blows up above about sr/6)
+            float s1 = 0, s2 = 0;
             double thumpPhase = 0, ringPhase = 0;
             const float pi = juce::MathConstants<float>::pi;
 
@@ -74,12 +75,14 @@ namespace gf
                 const float env = t < r.attack ? t / r.attack : std::exp (-(t - r.attack) / r.decay);
 
                 const float hz = juce::jlimit (40.0f, (float) sr * 0.45f, noiseHz * std::pow (2.0f, r.sweep * juce::jmin (1.0f, t / r.length)));
-                const float f = 2.0f * std::sin (pi * hz / (float) sr);
-                const float q = 1.0f / juce::jmax (0.3f, r.noiseQ);
+                const float g = std::tan (pi * hz / (float) sr);
+                const float k = 1.0f / juce::jmax (0.3f, r.noiseQ);
                 const float x = rng.nextFloat() * 2 - 1;
-                low += f * band;
-                const float high = x - low - q * band;
-                band += f * high;
+                const float hp = (x - (k + g) * s1 - s2) / (1.0f + g * (g + k));
+                const float band = g * hp + s1;
+                s1 = g * hp + band;
+                const float low = g * band + s2;
+                s2 = g * band + low;
                 float s = band * r.noiseGain * env;
 
                 if (r.thumpGain > 0)

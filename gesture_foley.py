@@ -1,42 +1,38 @@
 #!/usr/bin/env python3
 # Gesture Foley · Copyright (c) 2026 Atharva Bankar. All rights reserved. See LICENSE.
 """
-Gesture Foley - Python / MIDI version
-=====================================
+Gesture Foley - hand tracker (Python / MIDI)
+============================================
 
-Webcam -> MediaPipe hand tracking -> gesture detection -> footstep synthesis + MIDI out.
+Webcam -> MediaPipe hand tracking -> finger touches -> MIDI for the Gesture Foley plugin.
 
-Uses the same gesture engine as the browser version (docs/gestures.js):
+Same touch engine as the website (docs/gestures.js): touch your thumb to a fingertip.
 
-  Thumb + index touch    step          (heel + toe)
-  Thumb + middle touch   scuff
-  Thumb + ring touch     squeak        (sneaker on a hard floor)
-  Fist                   stomp         (landing / jump)
-  Swipe sideways         shuffle
-  Move open hand         continuous motion, sent as MIDI CC 1
+  Thumb + index     sound 1      Thumb + ring      sound 3
+  Thumb + middle    sound 2      Thumb + pinky     sound 4
 
-How fast your fingers close sets the velocity. Your left hand plays the
-left foot, your right hand the right foot.
+It fires once per touch, only for the clearly closest finger, never during fast hand
+movement, never from a fist, and not in a hand's first 0.3 s in frame. How fast the
+fingers close sets the velocity.
 
-MIDI (virtual port "Gesture Foley"): one note per gesture and hand, so a
-sampler in your DAW can hold a different sample for each.
+MIDI (virtual port "Gesture Foley"), the plugin's map:
 
-                   Left   Right
-  index (step)      36     37
-  middle (scuff)    38     39
-  ring (squeak)     40     41
-  fist (stomp)      42     43
-  swipe (shuffle)   44     45
-
-  CC 1   open-hand motion (0-127)      CC 74  hand height (0-127)
-  CC 20  surface (0 concrete, 1 wood, 2 gravel, 3 grass, 4 snow)
+  Notes 40-43   left hand  index, middle, ring, pinky
+  Notes 44-47   right hand index, middle, ring, pinky
+  CC 16 / 17    blend pad X / Y   (when "pad follows hand" is on)
+  CC 18         Size, small to large
+  Program 0-9   folder
 
 Keys (click the video window first):
-  1-5       surface: concrete / wood / gravel / grass / snow
-  + / -     touch distance up / down (raise if touches are missed)
-  e         early trigger on / off (fires just before contact)
-  space     play a test step
+  0-9       folder: 1 Footsteps 2 Cloth 3 Movement 4 Impacts 5 Props 6 Guns
+            7 Jewellery 8 Elements 9 Creatures 0 Cinematic
+  p         pad follows hand on / off (left hand, or the only hand, moves the blend point)
+  [ / ]     Size smaller / larger
+  + / -     touch distance up / down (raise it if touches are missed)
+  space     test touch (index, left hand)
   q / Esc   quit
+
+The built-in preview sound (footsteps only) plays when MIDI is off, or with --sound.
 """
 
 import argparse
@@ -46,7 +42,6 @@ import sys
 import time
 import urllib.request
 
-import cv2
 import numpy as np
 from scipy.signal import butter, lfilter
 
@@ -74,130 +69,152 @@ def clamp(v, lo=0.0, hi=1.0):
 
 
 # ---------------------------------------------------------------------------
-# Gesture engine (a direct port of docs/gestures.js)
+# Touch engine (a direct port of docs/gestures.js)
 # ---------------------------------------------------------------------------
 
-TIPS = (8, 12, 16, 20)
-PALM = (0, 5, 9, 13, 17)
-PINCH_TIPS = {"a": 8, "b": 12, "c": 16}
-GESTURES = ("a", "b", "c", "fist", "swipe")
+SLOTS = ("index", "middle", "ring", "pinky")
+TIP = {"index": 8, "middle": 12, "ring": 16, "pinky": 20}
+USED = (0, 4, 5, 8, 9, 12, 16, 17, 20)
+
+DEFAULTS = dict(
+    touch=0.22,     # touching when the gap is below this (in hand sizes)
+    reopen=0.25,    # must open this much further than `touch` to re-arm
+    ratio=0.65,     # closest finger must be this much closer than the next one
+    max_speed=3.5,  # hand sizes per second; faster than this blocks triggers
+    warmup=0.3,     # seconds a new hand is watched before it can fire
+    gap=0.1,        # minimum seconds between two sounds from one hand
+)
+
+FOLDERS = ("Footsteps", "Cloth", "Movement", "Impacts & body", "Props & objects", "Guns",
+           "Jewellery", "Water & elements", "Creatures", "Cinematic")
+
+
+class OneEuro:
+    """Adaptive low-pass: heavy smoothing when still, light smoothing when moving fast."""
+
+    def __init__(self, min_cutoff=2.0, beta=20.0, d_cutoff=1.0):
+        self.min_cutoff, self.beta, self.d_cutoff = min_cutoff, beta, d_cutoff
+        self.x = None
+        self.dx = 0.0
+        self.t = None
+
+    @staticmethod
+    def alpha(cutoff, dt):
+        tau = 1.0 / (2 * np.pi * cutoff)
+        return 1.0 / (1.0 + tau / dt)
+
+    def filter(self, x, t):
+        if self.x is None:
+            self.x, self.t = x, t
+            return x
+        dt = t - self.t
+        if dt <= 0:
+            return self.x
+        self.t = t
+        dx = (x - self.x) / dt
+        self.dx += self.alpha(self.d_cutoff, dt) * (dx - self.dx)
+        cutoff = self.min_cutoff + self.beta * abs(self.dx)
+        self.x += self.alpha(cutoff, dt) * (x - self.x)
+        return self.x
 
 
 class Hand:
     """
-    Turns 21 hand landmarks into events. Distances are divided by the hand's
-    own size (wrist -> middle-finger base), so it works at any distance.
-
-      a / b / c  thumb tip touches index / middle / ring tip
-      fist       hand closes quickly
-      swipe      fast sideways movement of an open hand
-      motion     0..1, how much an open hand is moving (continuous)
+    Turns 21 hand landmarks into touch events. Distances are divided by the hand's own
+    size (wrist -> middle-finger base), so it behaves the same near or far from the camera.
     """
 
-    def __init__(self):
-        self.pinch = {k: dict(tip=t, down=False, hist=[], last=-1.0, r=9.0, cs=0.0) for k, t in PINCH_TIPS.items()}
-        self.open_hist = []
-        self.fist_armed = True
-        self.swipe_armed = True
+    def __init__(self, t):
+        self.born = t
+        self.f = {i: (OneEuro(), OneEuro()) for i in USED}
+        self.s = {k: dict(armed=False, r=9.0, hist=[]) for k in SLOTS}
+        self.last_fire = -1.0
         self.prev_palm = None
         self.last_t = None
-        self.vx = self.vy = 0.0
-        self.motion = 0.0
-        self.openness = 2.0
-        self.height = 0.5
-        self.palm = (0.5, 0.5)
+        self.speed = 0.0
+        self.pts = {}
+        self.ready = False
 
-    def update(self, lms, t, aspect, cfg):
-        """lms: 21 (x, y) in normalised image coords. Returns a list of event dicts."""
-        P = [(x * aspect, y) for x, y in lms]
+    def palm(self, aspect):
+        P = self.pts
+        return ((P[0][0] + P[5][0] + P[9][0] + P[17][0]) / 4 / aspect,
+                (P[0][1] + P[5][1] + P[9][1] + P[17][1]) / 4)
 
-        def dist(i, j):
-            return float(np.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]))
+    def update(self, lms, t, aspect, cfg=None):
+        """lms: 21 (x, y) normalised to the image. Returns [{slot, vel, x, y}]."""
+        c = {**DEFAULTS, **(cfg or {})}
+        P = self.pts
+        for i in USED:
+            fx, fy = self.f[i]
+            P[i] = (fx.filter(lms[i][0] * aspect, t), fy.filter(lms[i][1], t))
 
-        scale = max(dist(0, 9), 1e-3)
-        ext = {i: dist(i, 0) / scale for i in TIPS}
-        openness = sum(ext.values()) / 4
-        self.openness = openness
+        def d(a, b):
+            return float(np.hypot(P[a][0] - P[b][0], P[a][1] - P[b][1]))
+
+        scale = max(d(0, 9), 1e-3)
         dt = 0.0 if self.last_t is None else t - self.last_t
         self.last_t = t
-        events = []
 
-        # ---- finger contact ----
-        press = cfg["touch"]
-        release = cfg["touch"] + 0.17          # hysteresis: must open past this to re-arm
-        best = None
-        for k, pn in self.pinch.items():
-            r = dist(4, pn["tip"]) / scale
-            pn["r"] = r
-            pn["hist"].append((t, r))
-            while len(pn["hist"]) > 1 and t - pn["hist"][0][0] > 0.12:
-                pn["hist"].pop(0)
-            t0, r0 = pn["hist"][0]
-            pn["cs"] = (r0 - r) / (t - t0) if t > t0 else 0.0   # closing speed, hand-sizes/s
-
-            # Other fingers must stay out, so a closing fist doesn't count as a touch.
-            others_out = sum(1 for i in TIPS if i != pn["tip"] and ext[i] > 1.45) >= 2
-            touching = r < press
-            if (not touching and cfg["early"] and not pn["down"] and pn["cs"] > 3
-                    and dt > 0 and r - pn["cs"] * dt < press):
-                touching = True                  # predicted to touch before the next frame
-            if not pn["down"] and touching:
-                pn["down"] = True
-                if (others_out and cfg["gest"][k] and t - pn["last"] > 0.06
-                        and (best is None or r < best["r"])):
-                    best = dict(k=k, r=r, cs=pn["cs"],
-                                x=(P[4][0] + P[pn["tip"]][0]) / 2 / aspect,
-                                y=(P[4][1] + P[pn["tip"]][1]) / 2)
-            elif pn["down"] and r > release:
-                pn["down"] = False
-        if best:
-            self.pinch[best["k"]]["last"] = t
-            vel = 0.15 + 0.85 * clamp((best["cs"] - 1) / 7)
-            events.append(dict(kind=best["k"], vel=vel, x=best["x"], y=best["y"]))
-
-        # ---- palm position and speed ----
-        px = sum(P[i][0] for i in PALM) / len(PALM)
-        py = sum(P[i][1] for i in PALM) / len(PALM)
+        # palm speed in hand sizes per second
+        px = (P[0][0] + P[5][0] + P[9][0] + P[17][0]) / 4
+        py = (P[0][1] + P[5][1] + P[9][1] + P[17][1]) / 4
         if self.prev_palm is not None and dt > 0:
-            self.vx = 0.6 * self.vx + 0.4 * (px - self.prev_palm[0]) / dt
-            self.vy = 0.6 * self.vy + 0.4 * (py - self.prev_palm[1]) / dt
+            sp = np.hypot(px - self.prev_palm[0], py - self.prev_palm[1]) / dt / scale
+            self.speed = 0.5 * self.speed + 0.5 * sp
         self.prev_palm = (px, py)
-        self.palm = (px / aspect, py)
-        self.height = clamp(1 - py)
-        is_open = openness > 1.35
 
-        # ---- fist ----
-        self.open_hist.append((t, openness))
-        while len(self.open_hist) > 1 and t - self.open_hist[0][0] > 0.35:
-            self.open_hist.pop(0)
-        t_max, max_o = max(self.open_hist, key=lambda h: h[1])
-        if self.fist_armed and openness < 1.15 and max_o > 1.5:
-            self.fist_armed = False
-            rate = (max_o - openness) / max(t - t_max, 0.03)
-            if cfg["gest"]["fist"]:
-                events.append(dict(kind="fist", vel=0.2 + 0.8 * clamp((rate - 1) / 6), x=self.palm[0], y=self.palm[1]))
-        elif not self.fist_armed and openness > 1.45:
-            self.fist_armed = True
+        release = c["touch"] + c["reopen"]
+        for k in SLOTS:
+            s = self.s[k]
+            s["r"] = d(4, TIP[k]) / scale
+            s["hist"].append((t, s["r"]))
+            while len(s["hist"]) > 1 and t - s["hist"][0][0] > 0.15:
+                s["hist"].pop(0)
+            if s["r"] > release:
+                s["armed"] = True
 
-        # ---- swipe (screen heights per second) ----
-        thr, ax = 2.0, abs(self.vx)
-        if self.swipe_armed and is_open and ax > thr and ax > 1.5 * abs(self.vy):
-            self.swipe_armed = False
-            if cfg["gest"]["swipe"]:
-                # The view is mirrored: x growing in the camera image = moving left on screen.
-                events.append(dict(kind="swipe", vel=0.2 + 0.8 * clamp((ax - thr) / 4),
-                                   dir=-1 if self.vx > 0 else 1, x=self.palm[0], y=self.palm[1]))
-        elif not self.swipe_armed and ax < 0.6:
-            self.swipe_armed = True
+        # Warm-up for new hands. Fingers already touching stay disarmed.
+        self.ready = t - self.born >= c["warmup"]
+        if not self.ready:
+            for k in SLOTS:
+                self.s[k]["armed"] = self.s[k]["r"] > release
+            return []
 
-        # ---- continuous motion of an open hand ----
-        sp = float(np.hypot(self.vx, self.vy))
-        self.motion = 0.85 * self.motion + 0.15 * (clamp((sp - 0.08) / 1.2) if is_open else 0.0)
-        return events
+        # Fast movement blocks triggers and disarms fingers that are closed.
+        if self.speed > c["max_speed"]:
+            for k in SLOTS:
+                if self.s[k]["r"] < release:
+                    self.s[k]["armed"] = False
+            return []
 
+        # Only the clearly closest finger.
+        order = sorted(((k, self.s[k]["r"]) for k in SLOTS), key=lambda kv: kv[1])
+        k, r = order[0]
+        s = self.s[k]
+        if not s["armed"] or r >= c["touch"] or r >= c["ratio"] * order[1][1] or t - self.last_fire < c["gap"]:
+            return []
+
+        # At least two of the other fingers extended (not a fist).
+        extended = sum(1 for o in SLOTS if o != k and d(TIP[o], 0) / scale > 1.3)
+        if extended < 2:
+            s["armed"] = False
+            return []
+
+        # Velocity from how fast the gap closed over the last 150 ms.
+        r_max, t_max = r, t
+        for ht, hr in s["hist"]:
+            if hr > r_max:
+                r_max, t_max = hr, ht
+        closing = (r_max - r) / max(t - t_max, 0.02)
+        vel = 0.15 + 0.85 * clamp((closing - 1) / 7)
+
+        s["armed"] = False          # one sound per touch
+        self.last_fire = t
+        tip, th = P[TIP[k]], P[4]
+        return [dict(slot=k, vel=vel, x=(tip[0] + th[0]) / 2 / aspect, y=(tip[1] + th[1]) / 2)]
 
 # ---------------------------------------------------------------------------
-# Footstep synthesis
+# Preview sound (footsteps on wood; the plugin makes the real sound)
 # ---------------------------------------------------------------------------
 
 def _filt(x, kind, freq, order=2):
@@ -328,6 +345,7 @@ def render(kind, surface, vel):
     return out.astype(np.float32)
 
 
+
 class Mixer:
     """Plays overlapping one-shots from the real-time audio callback."""
 
@@ -366,12 +384,26 @@ class Mixer:
 # MIDI output
 # ---------------------------------------------------------------------------
 
-GESTURE_NOTES = {"a": 36, "b": 38, "c": 40, "fist": 42, "swipe": 44}   # left hand; right = +1
-CC_MOTION, CC_HEIGHT, CC_SURFACE = 1, 74, 20
+
+# ---------------------------------------------------------------------------
+# MIDI output (the Gesture Foley plugin's map)
+# ---------------------------------------------------------------------------
+
+NOTE_BASE = {"centre": 36, "left": 40, "right": 44}
+CC_X, CC_Y, CC_SIZE = 16, 17, 18
+PREVIEW_KIND = {"index": "a", "middle": "b", "ring": "c", "pinky": "fist"}
+
+
+def note_for(slot, side):
+    return NOTE_BASE[side] + SLOTS.index(slot)
+
+
+def midi_velocity(vel):
+    return int(np.clip(round(1 + vel * 126), 1, 127))
 
 
 class MidiOut:
-    """One short note per gesture event; continuous controls as CCs (only sent when they change)."""
+    """One short note per touch; CCs only sent when their value changes."""
 
     def __init__(self, port_name=None, virtual_name="Gesture Foley", channel=0, note_len=0.1):
         if port_name:   # connect to an existing port (needed on Windows, e.g. loopMIDI)
@@ -384,38 +416,26 @@ class MidiOut:
         self.pending = []   # [(release_time, note)]
         self.cc_last = {}
 
-    @staticmethod
-    def note_for(kind, hand):
-        return GESTURE_NOTES[kind] + (1 if hand == "right" else 0)
-
-    @staticmethod
-    def midi_velocity(vel):
-        return int(np.clip(round(1 + vel * 126), 1, 127))
-
     def _send(self, msg_type, **kw):
         self.port.send(mido.Message(msg_type, channel=self.channel, **kw))
 
-    def note(self, kind, hand, vel, t):
-        note = self.note_for(kind, hand)
+    def note(self, note, vel, t):
         for i, (_, n) in enumerate(self.pending):     # retrigger cleanly if still held
             if n == note:
                 self._send("note_off", note=note, velocity=0)
                 del self.pending[i]
                 break
-        self._send("note_on", note=note, velocity=self.midi_velocity(vel))
+        self._send("note_on", note=note, velocity=midi_velocity(vel))
         self.pending.append((t + self.note_len, note))
-        return note
 
-    def cc(self, control, value01):
+    def cc(self, control, value01, force=False):
         v = int(round(clamp(value01) * 127))
-        if self.cc_last.get(control) != v:
+        if force or self.cc_last.get(control) != v:
             self.cc_last[control] = v
             self._send("control_change", control=control, value=v)
 
-    def surface(self, index):
-        self.cc_last.pop(CC_SURFACE, None)
-        self._send("control_change", control=CC_SURFACE, value=index)
-        self.cc_last[CC_SURFACE] = index
+    def program(self, n):
+        self._send("program_change", program=n)
 
     def tick(self, t):
         for _, note in [p for p in self.pending if p[0] <= t]:
@@ -444,14 +464,22 @@ BONES = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (5, 9),
 COLOURS = {"left": (255, 210, 100), "right": (10, 159, 255)}   # BGR: light blue / orange
 
 
+def steer_target(palm):
+    """Palm position (image coords) -> blend pad point. The middle 60% of the frame covers the pad."""
+    px, py = palm
+    return clamp((1 - px - 0.2) / 0.6), clamp((py - 0.15) / 0.6)
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Gesture Foley - finger-touch foley with MIDI out")
+    ap = argparse.ArgumentParser(description="Gesture Foley hand tracker - finger touches to MIDI")
     ap.add_argument("--camera", type=int, default=0, help="camera index (try 1 for an external webcam)")
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=720)
     ap.add_argument("--fps", type=int, default=60, help="requested camera fps (camera may give less)")
-    ap.add_argument("--no-sound", action="store_true", help="MIDI only - let the DAW's sampler make the sound")
-    ap.add_argument("--no-midi", action="store_true", help="disable MIDI output")
+    ap.add_argument("--sound", action="store_true", help="play the built-in footstep preview even with MIDI on")
+    ap.add_argument("--no-midi", action="store_true", help="disable MIDI output (preview sound only)")
+    ap.add_argument("--one-channel", action="store_true",
+                    help="send both hands on notes 36-39 (no left/right pan in the plugin)")
     ap.add_argument("--midi-port", default=None,
                     help="send to an existing MIDI port instead of creating a virtual one "
                          "(required on Windows, e.g. a loopMIDI port)")
@@ -465,7 +493,8 @@ def main():
             print("MIDI outputs:", *mido.get_output_names(), sep="\n  ")
         return
 
-    # Imported here so --list-midi works without them.
+    # Imported here so --list-midi and the tests work without them.
+    import cv2
     import mediapipe as mp
     from mediapipe.tasks import python as mp_python
     from mediapipe.tasks.python import vision
@@ -485,8 +514,8 @@ def main():
     ensure_model()
 
     mixer, stream = None, None
-    if args.no_sound:
-        print("Built-in sound off (--no-sound).")
+    if midi and not args.sound:
+        print("Preview sound off: the plugin makes the sound (add --sound to hear the preview too).")
     elif sd is not None:
         try:
             mixer = Mixer()
@@ -494,10 +523,10 @@ def main():
                                      blocksize=256, latency="low", callback=mixer.callback)
             stream.start()
         except Exception as e:
-            print(f"Audio disabled ({e}). Events will only be printed.")
+            print(f"Audio disabled ({e}). Touches will only be printed.")
             mixer = None
     else:
-        print("sounddevice not available - events will only be printed.")
+        print("sounddevice not available - touches will only be printed.")
 
     cap = cv2.VideoCapture(args.camera)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
@@ -517,24 +546,27 @@ def main():
         min_tracking_confidence=0.5,
     )
 
-    cfg = dict(touch=0.25, early=False, gest={g: True for g in GESTURES})
-    surface = "concrete"
+    cfg = dict(touch=DEFAULTS["touch"])
+    folder, size, steer = 0, 0.5, False
+    pad = [0.5, 0.5]
     hands, flashes = {}, []
     fps, proc_ms = 0.0, 0.0
     t0 = last_t = time.perf_counter()
     last_ts = -1
 
-    def fire(kind, hand, vel, now):
-        msg = f"[{time.strftime('%H:%M:%S')}] {SOUND_NAMES[kind]:<8} {hand:<5} vel={vel:.2f}  {surface}"
+    def fire(slot, side, vel, now):
+        note = note_for(slot, "centre" if args.one_channel else side)
+        msg = f"[{time.strftime('%H:%M:%S')}] {side:<5} thumb+{slot:<6} vel={vel:.2f}  {FOLDERS[folder]}"
         if midi:
-            note = midi.note(kind, hand, vel, now)
-            msg += f"  -> MIDI note {note} vel {MidiOut.midi_velocity(vel)}"
+            midi.note(note, vel, now)
+            msg += f"  -> note {note} vel {midi_velocity(vel)}"
         print(msg)
         if mixer:
-            mixer.play(render(kind, surface, vel), pan=-0.25 if hand == "left" else 0.25)
+            mixer.play(render(PREVIEW_KIND[slot], "wood", vel), pan=-0.25 if side == "left" else 0.25)
 
-    if midi:
-        midi.surface(0)
+    if midi:   # tell the plugin where we start
+        midi.program(folder)
+        midi.cc(CC_SIZE, size, force=True)
     print("\nReady. Touch your thumb to a fingertip. Press q to quit.\n")
 
     with vision.HandLandmarker.create_from_options(options) as landmarker:
@@ -558,52 +590,57 @@ def main():
             Y = lambda y: int(y * h)
 
             seen = set()
-            best_motion, best_height = 0.0, 0.5
             for lms, hd in zip(result.hand_landmarks, result.handedness):
                 # The camera image isn't mirrored, so MediaPipe's "Left" is the performer's right hand.
                 side = "right" if hd[0].category_name == "Left" else "left"
                 if side in seen:
                     side = "left" if side == "right" else "right"
                 seen.add(side)
-                hand = hands.setdefault(side, Hand())
+                hand = hands.get(side) or hands.setdefault(side, Hand(t_cap))
                 pts = [(lm.x, lm.y) for lm in lms]
                 for e in hand.update(pts, t_cap, aspect, cfg):
-                    fire(e["kind"], side, e["vel"], t_cap)
-                    flashes.append((e["x"], e["y"], t_cap, side, e["kind"] in ("fist", "swipe")))
-                if hand.motion > best_motion:
-                    best_motion, best_height = hand.motion, hand.height
+                    fire(e["slot"], side, e["vel"], t_cap)
+                    flashes.append((e["x"], e["y"], t_cap, side))
 
                 # --- drawing ---
                 col = COLOURS[side]
                 for a, b in BONES:
                     cv2.line(view, (X(pts[a][0]), Y(pts[a][1])), (X(pts[b][0]), Y(pts[b][1])), (200, 200, 200), 1, cv2.LINE_AA)
-                for k, pn in hand.pinch.items():
-                    closeness = clamp((0.9 - pn["r"]) / (0.9 - cfg["touch"]))
+                for k in SLOTS:
+                    st = hand.s[k]
+                    closeness = clamp((0.9 - st["r"]) / (0.9 - cfg["touch"]))
                     if closeness > 0:
-                        a, b = pts[4], pts[pn["tip"]]
+                        a, b = pts[4], pts[TIP[k]]
                         cv2.line(view, (X(a[0]), Y(a[1])), (X(b[0]), Y(b[1])), col, 1 + int(3 * closeness), cv2.LINE_AA)
-                        if pn["down"]:
-                            cv2.circle(view, (X((a[0] + b[0]) / 2), Y((a[1] + b[1]) / 2)), 7, col, -1, cv2.LINE_AA)
-                for i in (4, 8, 12, 16):
-                    cv2.circle(view, (X(pts[i][0]), Y(pts[i][1])), 5, col, -1, cv2.LINE_AA)
+                for k in SLOTS:   # filled = armed (ready to fire), ring = waiting to open again
+                    i = TIP[k]
+                    cv2.circle(view, (X(pts[i][0]), Y(pts[i][1])), 6, col, -1 if hand.s[k]["armed"] else 1, cv2.LINE_AA)
+                cv2.circle(view, (X(pts[4][0]), Y(pts[4][1])), 6, col, -1, cv2.LINE_AA)
 
             for k in list(hands):
                 if k not in seen:
                     del hands[k]
 
+            # Pad follows hand: the left hand (or the only hand) moves the blend point.
+            if steer:
+                hand = hands.get("left") or hands.get("right")
+                if hand and hand.ready:
+                    tx, ty = steer_target(hand.palm(aspect))
+                    pad[0] += 0.35 * (tx - pad[0])
+                    pad[1] += 0.35 * (ty - pad[1])
+                    if midi:
+                        midi.cc(CC_X, pad[0])
+                        midi.cc(CC_Y, pad[1])
+
             for f in list(flashes):
-                x, y, ft, side, big = f
+                x, y, ft, side = f
                 age = t_cap - ft
                 if age > 0.3:
                     flashes.remove(f)
                     continue
-                radius = int((30 if big else 12) + age / 0.3 * (50 if big else 30))
-                cv2.circle(view, (X(x), Y(y)), radius, COLOURS[side], 2, cv2.LINE_AA)
+                cv2.circle(view, (X(x), Y(y)), int(12 + age / 0.3 * 30), COLOURS[side], 2, cv2.LINE_AA)
 
             if midi:
-                midi.cc(CC_MOTION, best_motion)
-                if seen:
-                    midi.cc(CC_HEIGHT, best_height)
                 midi.tick(time.perf_counter())
 
             now = time.perf_counter()
@@ -613,34 +650,40 @@ def main():
                 fps = 0.9 * fps + 0.1 * (1 / dt)
             proc_ms = 0.9 * proc_ms + 0.1 * (now - t_cap) * 1000
 
-            hud = [f"Surface: {surface}   Touch distance: {cfg['touch']:.2f}   Early: {'on' if cfg['early'] else 'off'}",
-                   f"Camera FPS: {fps:4.1f}   Processing: {proc_ms:4.1f} ms   Motion: {best_motion:.2f}",
-                   f"MIDI: {midi.name if midi else 'off'}   Sound: {'on' if mixer else 'off'}"]
+            hud = [f"Folder: {FOLDERS[folder]}   Size: {size:.1f}   Pad follows hand: {'on' if steer else 'off'}"
+                   + (f" ({pad[0]:.2f}, {pad[1]:.2f})" if steer else ""),
+                   f"Touch distance: {cfg['touch']:.2f}   Camera FPS: {fps:4.1f}   Processing: {proc_ms:4.1f} ms",
+                   f"MIDI: {midi.name if midi else 'off'}   Preview sound: {'on' if mixer else 'off'}"]
             for i, line in enumerate(hud):
                 cv2.putText(view, line, (15, 30 + 28 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2, cv2.LINE_AA)
-            cv2.putText(view, "thumb+index step | +middle scuff | +ring squeak | fist stomp | swipe shuffle",
+            cv2.putText(view, "thumb + index / middle / ring / pinky = sounds 1-4",
                         (15, h - 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (230, 230, 230), 1, cv2.LINE_AA)
-            cv2.putText(view, "1-5 surface | +/- touch distance | e early | space test | q quit",
+            cv2.putText(view, "0-9 folder | p pad follows hand | [ ] size | +/- touch distance | space test | q quit",
                         (15, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (230, 230, 230), 1, cv2.LINE_AA)
 
             cv2.imshow("Gesture Foley", view)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
-            if ord("1") <= key <= ord("5"):
-                surface = SURFACE_NAMES[key - ord("1")]
+            if ord("0") <= key <= ord("9"):
+                folder = (key - ord("1")) % 10     # 1 = first folder ... 0 = tenth
                 if midi:
-                    midi.surface(key - ord("1"))
-                print(f"Surface -> {surface}")
+                    midi.program(folder)
+                print(f"Folder -> {FOLDERS[folder]}")
+            elif key == ord("p"):
+                steer = not steer
+                print(f"Pad follows hand -> {'on' if steer else 'off'}")
+            elif key in (ord("["), ord("]")):
+                size = clamp(round(size + (0.1 if key == ord("]") else -0.1), 1))
+                if midi:
+                    midi.cc(CC_SIZE, size)
+                print(f"Size -> {size:.1f}")
             elif key in (ord("+"), ord("=")):
                 cfg["touch"] = min(0.45, round(cfg["touch"] + 0.01, 2))
             elif key in (ord("-"), ord("_")):
                 cfg["touch"] = max(0.12, round(cfg["touch"] - 0.01, 2))
-            elif key == ord("e"):
-                cfg["early"] = not cfg["early"]
-                print(f"Early trigger -> {'on' if cfg['early'] else 'off'}")
             elif key == ord(" "):
-                fire("a", "left", 0.7, time.perf_counter())
+                fire("index", "left", 0.7, time.perf_counter())
 
     cap.release()
     cv2.destroyAllWindows()
